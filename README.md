@@ -1,25 +1,17 @@
 # Insurance Decision Assistant
 
-> ML-powered churn prediction & retention strategy system with temporal modeling and RAG
+A churn prediction and retention strategy system for insurance policies. Trains an XGBoost classifier on temporal panel data and generates personalized retention strategies using RAG.
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Runtime](https://img.shields.io/badge/runtime-%3C30s-green.svg)]()
-[![AUC-PR](https://img.shields.io/badge/AUC--PR-0.72-brightgreen.svg)]()
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-pip install -r requirements.txt  # One-time setup
-python run.py                     # Complete pipeline in ~21 seconds
+pip install -r requirements.txt
+python run.py
 ```
 
-**All outputs** → `out/` directory | **Primary metric** → AUC-PR: 0.72
+Runtime: ~21 seconds. All outputs go to `out/`.
 
----
-
-## 📊 System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
@@ -66,26 +58,21 @@ graph TD
     class N output
 ```
 
----
+## Performance
 
-## 📈 Key Results
+Primary metric is **AUC-PR: 0.72** (average precision). This is appropriate for imbalanced classification where precision at the top of the ranking matters more than overall accuracy.
 
-| Metric | Value | Interpretation |
-|--------|-------|----------------|
-| **AUC-PR** | **0.72** | Primary metric: Excellent precision-recall trade-off |
-| Precision@1% | 0.80 | 80% of top 1% predictions are true lapses |
-| Precision@5% | 0.83 | Strong targeting at operational thresholds |
-| ROC-AUC | 0.76 | Robust class discrimination |
-| Brier Score | 0.141 | Well-calibrated probabilities |
+| Metric | Value |
+|--------|-------|
+| AUC-PR | 0.72 |
+| ROC-AUC | 0.76 |
+| Brier Score | 0.141 |
+| Precision@1% | 0.80 |
+| Precision@5% | 0.83 |
 
-**Baseline Comparison:**
-- Dummy (prevalence): 0.49 AUC-PR
-- Logistic Regression: 0.71 AUC-PR
-- **XGBoost: 0.72 AUC-PR** (+47% lift vs. baseline)
+For context, dummy baseline gets 0.49 AUC-PR and logistic regression gets 0.71. XGBoost provides a meaningful lift (+47% over baseline).
 
----
-
-## 📁 Output Structure
+## Outputs
 
 ```
 out/
@@ -96,144 +83,74 @@ out/
 ├── data.csv                 # Synthetic panel data (24K rows)
 ├── split_report.json        # Temporal split validation
 ├── leakage_report.txt       # Leakage columns removed
-├── lapse_plans.jsonl        # 3 retention strategies (high/mid/low risk)
+├── lapse_plans.jsonl        # 3 retention strategies
 ├── lead_plans.jsonl         # 3 lead conversion strategies
-├── audit_rag.json           # Faithfulness verification (100%)
+├── audit_rag.json           # Faithfulness verification
 └── rag/
-    ├── lapse/               # 6 retention strategy documents
-    └── lead/                # 6 conversion strategy documents
+    ├── lapse/               # 6 retention documents
+    └── lead/                # 6 conversion documents
 ```
 
----
+## Design Choices
 
-## 🎯 Design Decisions
+**Temporal split instead of random split**: Train on past data (Jan-Aug), validate on near-future (Sep-Oct), test on far-future (Nov-Dec). This prevents leakage and mimics production deployment where you train on historical data and predict forward.
 
-### Why XGBoost?
-- Handles nonlinear interactions (e.g., price shock + low tenure)
-- Fast training with early stopping (<30 seconds)
-- Robust to feature scaling issues
+**AUC-PR instead of ROC-AUC**: The data has 45% positive rate during drift period. AUC-PR focuses on precision at the top of the score distribution, which is what matters for targeting retention campaigns.
 
-### Why AUC-PR over ROC-AUC?
-- Better for imbalanced data (45% prevalence in drift period)
-- Focuses on precision at top of score distribution
-- Aligns with business goal: target high-risk customers
+**Manual hyperparameter search**: Scikit-learn's Pipeline doesn't automatically transform the eval_set parameter for XGBoost early stopping. Rather than hack around this, I just loop over 35 parameter combinations manually. It's cleaner and takes the same amount of time.
 
-### Why TF-IDF for RAG?
-- Fast, deterministic, offline (no API keys)
-- Retrieves 3 documents for 3-step strategy plans
-- 100% citation faithfulness (verified programmatically)
+**TF-IDF for RAG**: Fast, deterministic, no API keys. Retrieves 3 documents and generates 3-step plans with citations. All citations are verified programmatically (100% faithfulness rate).
 
-### Why Manual Hyperparameter Search?
-- Avoids Pipeline + eval_set compatibility issues in scikit-learn
-- Direct control over transformed validation set
-- 35 trials balance exploration vs. runtime
+## What the Model Learned
 
----
+SHAP analysis shows the top risk drivers:
 
-## 🔍 Model Insights
+1. **Payment failures** - Most predictive feature. Financial stress is a clear churn signal.
+2. **Premium increases** - Price sensitivity drives most lapse decisions. 8x weight in the data generation.
+3. **Low engagement** - Customers who don't interact with the platform are 2.5x more likely to leave.
+4. **Short tenure** - New customers haven't built loyalty yet.
+5. **No agent** - Having a personal agent reduces lapse probability by ~60%.
 
-**Top Risk Drivers (SHAP Analysis):**
+The model also picks up interaction effects like "payment failures + low engagement" and "young + no agent + price increase" which create compounding risk.
 
-1. **Payment failures** → Financial stress = strongest lapse predictor (3x weight)
-2. **Premium increases** → Price sensitivity drives 60% of churn (8x weight)
-3. **Low engagement** → Disengaged customers 2.5x more likely to lapse
-4. **Short tenure** → New customers haven't built loyalty yet
-5. **No agent** → Personal touch reduces lapse by 60%
+## Data Quality
 
-**Critical Interaction Effects:**
-- Payment failures + Low engagement → "Disengaged at-risk" segment
-- Young + No agent + Price increase → Triple-risk scenario
-- Claims + No agent → Unresolved dissatisfaction
+The synthetic data includes:
+- 13 behavioral features (age, tenure, premium, claims, payment failures, engagement, etc.)
+- Temporal concept drift starting in July 2023 (+80% base risk)
+- A leakage trap feature (`post_event_call_count`) that gets removed by the pipeline
+- 10+ nonlinear interaction effects
 
----
+Labels are computed using a 3-month lookahead window. For example, to know if a policy in December will lapse, we look at Jan-Feb-Mar of the next year. This is why the data generator internally creates 15 months but only persists the first 12.
 
-## 🛡️ Data Quality Features
+## RAG Examples
 
-### Temporal Integrity
-✅ **No data leakage** - Past predicts future only  
-✅ **Leakage trap** - `post_event_call_count` detected & removed  
-✅ **Proper horizons** - 3-month lookahead labels computed correctly  
-✅ **Drift simulation** - +80% base risk starting 2023-07  
+The system generates differentiated strategies based on risk level:
 
-### Realistic Patterns
-- 13 behavioral features (claims, payments, engagement)
-- 10+ nonlinear interactions (price × tenure, smoker × age)
-- Regional and demographic effects
-- Temporal concept drift
+**High risk (67%)**: "URGENT: Emergency retention protocol initiated. Customer shows 3 payment failures + 18% premium increase..."
 
----
+**Mid risk (49%)**: "Proactive loyalty program enrollment recommended. Price-sensitive segment detected..."
 
-## 🤖 RAG Strategy Examples
+**Low risk (25%)**: "Standard service cadence maintained. Engagement score 0.78 indicates satisfied customer..."
 
-### High Risk (67% lapse probability)
-> **"URGENT: Emergency retention protocol initiated. Customer shows 3 payment failures + 18% premium increase. Immediate outreach required..."**
+All strategies cite retrieved documents and are verified for faithfulness.
 
-### Mid Risk (49% lapse probability)
-> **"Proactive loyalty program enrollment recommended. Price-sensitive segment detected with 12% premium increase..."**
+## Technical Stack
 
-### Low Risk (25% lapse probability)
-> **"Standard service cadence maintained. Engagement score 0.78 indicates satisfied customer..."**
+- Python 3.9+
+- scikit-learn 1.4.2
+- XGBoost 2.0.3
+- SHAP 0.45.0
+- NumPy 1.26.4, Pandas 2.1.4, SciPy 1.11.4
 
-All strategies include:
-- Risk-differentiated urgency levels
-- 3-step action plans with document citations
-- Grounding in retrieved best-practice documents
-- 100% faithfulness (all citations verified)
+Reproducibility: seed=42 everywhere, deterministic algorithms (n_jobs=1), pinned dependencies.
+
+## Additional Documentation
+
+- `DISCUSSION.md` - Technical notes on leakage trap, drift mechanism, SHAP insights
+- `config.yaml` - Configurable parameters (seed, trials, split windows)
+- `verify_outputs.py` - Self-test script
 
 ---
 
-## ⚡ Technical Stack
-
-**Core:** Python 3.9+ · NumPy 1.26.4 · Pandas 2.1.4  
-**ML:** scikit-learn 1.4.2 · XGBoost 2.0.3 · SciPy 1.11.4  
-**Explainability:** SHAP 0.45.0  
-**Visualization:** Matplotlib 3.8.4  
-
-**Reproducibility:**
-- ✅ Seed=42 everywhere (PYTHONHASHSEED, NumPy, XGBoost)
-- ✅ Pinned dependencies (exact versions in `requirements.txt`)
-- ✅ Deterministic algorithms (n_jobs=1, random_state=42)
-
----
-
-## 📖 Additional Documentation
-
-- **`DISCUSSION.md`** - Technical deep-dive: leakage trap mechanism, drift design, SHAP insights, ablation study
-- **`config.yaml`** - Configurable parameters (seed, trials, split windows, retrieval depth)
-- **`verify_outputs.py`** - Self-test script (bonus validation feature)
-
----
-
-## ✅ Assignment Checklist
-
-| Requirement | Status | Evidence |
-|------------|--------|----------|
-| Single command (`python run.py`) | ✅ | `run.py` orchestrates entire pipeline |
-| <5 min runtime | ✅ | ~21 seconds (see `run_meta.json`) |
-| Temporal train/val/test split | ✅ | `split_report.json` validates boundaries |
-| No data leakage | ✅ | `leakage_report.txt` confirms trap removal |
-| Concept drift simulation | ✅ | +80% base risk starting 2023-07 |
-| RAG lapse prevention | ✅ | 3 plans in `lapse_plans.jsonl` |
-| RAG lead conversion | ✅ | 3 plans in `lead_plans.jsonl` |
-| Strategy differentiation | ✅ | High/Mid/Low risk strategies |
-| Probability in prompt | ✅ | Embedded in first step of each plan |
-| Offline execution | ✅ | No API keys, deterministic TF-IDF |
-| Reproducible results | ✅ | Seed=42, pinned dependencies |
-| Performance metrics | ✅ | AUC-PR 0.72 in `metrics.json` |
-| Explainability | ✅ | SHAP bar chart in `shap_bar.png` |
-
----
-
-## 🚀 Next Steps (Production Roadmap)
-
-**Not required for this assignment, but natural extensions:**
-
-- [ ] Calibration curves for probability assessment
-- [ ] Threshold tuning for cost-sensitive decisions  
-- [ ] A/B testing framework for retention strategies
-- [ ] Real-time scoring API with monitoring dashboard
-- [ ] Drift detection and model retraining pipeline
-
----
-
-**Runtime:** ~21 seconds | **Primary Metric:** AUC-PR 0.72 | **Documentation:** See `DISCUSSION.md` for technical details
+**Primary metric:** AUC-PR 0.72 | **Runtime:** ~21 seconds | **See also:** `DISCUSSION.md`
