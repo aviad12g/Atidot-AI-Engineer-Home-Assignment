@@ -5,12 +5,14 @@ A production-ready churn prediction and strategy recommendation system for insur
 ## Quick Start
 
 ```bash
-# Install dependencies
+# One-time setup: Install dependencies (requires internet)
 pip install -r requirements.txt
 
-# Run complete pipeline (<5 minutes)
+# Run complete pipeline (<5 minutes, fully offline after setup)
 python run.py
 ```
+
+**Note**: "Offline" means no API keys or runtime internet required. Dependencies must be installed once with `pip install -r requirements.txt` before offline usage.
 
 All outputs will be generated in the `out/` directory.
 

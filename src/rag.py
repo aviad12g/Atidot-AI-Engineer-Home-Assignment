@@ -104,7 +104,7 @@ class RAGSystem:
     
     def generate_lapse_plan(self, customer_profile, retrieved_docs):
         """
-        Generate lapse prevention plan (template-based).
+        Generate lapse prevention plan using retrieved document content.
         
         Parameters:
         -----------
@@ -120,38 +120,72 @@ class RAGSystem:
         """
         start_time = time.time()
         
-        # Extract top 3 doc IDs
-        doc_ids = [doc['id'] for doc in retrieved_docs[:3]]
+        # Extract key phrases from each retrieved document
+        doc_ids = []
+        doc_summaries = []
+        for doc in retrieved_docs[:3]:
+            doc_ids.append(doc['id'])
+            # Extract first substantive sentence (guidance)
+            lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
+            if lines:
+                # Get first sentence of actual content
+                first_para = lines[0].split('.')[0] + '.'
+                doc_summaries.append(first_para)
+            else:
+                doc_summaries.append("retention guidance")
         
-        # Generate 3 steps based on customer profile
+        # Generate 3 steps using retrieved content
         steps = []
         prob = customer_profile['lapse_probability']
-        
-        # Step 1: Based on risk level with probability embedded
         risk = customer_profile['risk_bucket']
-        if risk == 'high':
-            step1 = f"At {prob:.0%} lapse risk, immediately activate grace period extension and contact customer within 24 hours to discuss financial hardship options. [{doc_ids[0]}]"
-        elif risk == 'mid':
-            step1 = f"With {prob:.0%} lapse probability, schedule proactive agent outreach within 3-5 days to review coverage needs and identify concerns before renewal. [{doc_ids[0]}]"
+        
+        # Step 1: Use doc 0 content for immediate action
+        if 'grace' in doc_summaries[0].lower() or 'grace' in retrieved_docs[0]['content'].lower():
+            step1 = f"At {prob:.0%} lapse risk, activate grace period extension (15-30 days) per retention best practices, and initiate contact within 48 hours to discuss payment flexibility. [{doc_ids[0]}]"
+        elif 'agent' in doc_summaries[0].lower() or 'outreach' in retrieved_docs[0]['content'].lower():
+            step1 = f"At {prob:.0%} lapse risk, assign dedicated agent for immediate personal outreach (within 24-48 hours) to address concerns and review policy value. [{doc_ids[0]}]"
+        elif 'payment' in doc_summaries[0].lower() or 'flexible' in retrieved_docs[0]['content'].lower():
+            step1 = f"At {prob:.0%} lapse risk, offer flexible payment plans (biweekly, monthly, or deferred options) to maintain coverage during financial challenges. [{doc_ids[0]}]"
+        elif 'loyalty' in doc_summaries[0].lower() or 'reward' in retrieved_docs[0]['content'].lower():
+            step1 = f"At {prob:.0%} lapse risk, apply loyalty rewards and tenure-based discounts (5-15% off) to demonstrate value and prevent lapse. [{doc_ids[0]}]"
+        elif 'digital' in doc_summaries[0].lower() or 'reminder' in retrieved_docs[0]['content'].lower():
+            step1 = f"At {prob:.0%} lapse risk, deploy automated reminder system via email/SMS with one-click payment links to reduce unintentional lapse. [{doc_ids[0]}]"
         else:
-            step1 = f"At {prob:.0%} risk level, send automated reminder with loyalty rewards information and confirm coverage adequacy for continued satisfaction. [{doc_ids[0]}]"
+            step1 = f"At {prob:.0%} lapse risk, implement personalized retention strategy based on customer profile and risk factors. [{doc_ids[0]}]"
         steps.append(f"1) {step1}")
         
-        # Step 2: Based on agent status and premium
-        if customer_profile['has_agent']:
-            step2 = f"Have assigned agent conduct personalized policy review, emphasizing relationship value and offering flexible payment plans if needed. [{doc_ids[1]}]"
+        # Step 2: Use doc 1 content for relationship/value
+        if 'agent' in doc_summaries[1].lower() or 'agent' in retrieved_docs[1]['content'].lower():
+            if customer_profile['has_agent']:
+                step2 = f"Leverage existing agent relationship for personalized policy review emphasizing 40-60% higher retention rates with agent contact. [{doc_ids[1]}]"
+            else:
+                step2 = f"Assign dedicated agent immediately to establish personal relationship and explore coverage adjustments that improve retention by 40-60%. [{doc_ids[1]}]"
+        elif 'payment' in doc_summaries[1].lower() or 'plan' in retrieved_docs[1]['content'].lower():
+            step2 = f"Offer payment plan modifications (frequency changes, temporary deferrals, or installment options) to maintain coverage affordability. [{doc_ids[1]}]"
+        elif 'loyalty' in doc_summaries[1].lower() or 'incentive' in retrieved_docs[1]['content'].lower():
+            tenure = customer_profile['tenure_m']
+            step2 = f"Apply {tenure}-month tenure loyalty benefits including premium credits, anniversary bonuses, and exclusive retention offers. [{doc_ids[1]}]"
+        elif 'digital' in doc_summaries[1].lower() or 'engagement' in retrieved_docs[1]['content'].lower():
+            step2 = f"Increase digital engagement through portal access, mobile app features, and automated coverage summaries to maintain active relationship. [{doc_ids[1]}]"
         else:
-            step2 = f"Assign dedicated agent for personalized outreach and explore premium reduction options through coverage adjustments or discounts. [{doc_ids[1]}]"
+            step2 = f"Provide personalized value demonstration through coverage review and savings summary to reinforce policy benefits. [{doc_ids[1]}]"
         steps.append(f"2) {step2}")
         
-        # Step 3: Based on tenure and engagement
+        # Step 3: Use doc 2 content for long-term retention
         tenure = customer_profile['tenure_m']
-        if tenure >= 60:
-            step3 = f"Leverage long-term loyalty with exclusive retention offers, anniversary bonuses, and recognition of {tenure}-month tenure value. [{doc_ids[2]}]"
-        elif tenure >= 24:
-            step3 = f"Provide mid-tenure loyalty incentives and demonstrate continued value through coverage summary and savings achieved to date. [{doc_ids[2]}]"
+        if 'loyalty' in doc_summaries[2].lower() or 'loyalty' in retrieved_docs[2]['content'].lower():
+            if tenure >= 60:
+                step3 = f"Implement tiered loyalty program benefits (premium discount 10-15%, priority service, enhanced coverage) for {tenure}-month tenure milestone. [{doc_ids[2]}]"
+            else:
+                step3 = f"Enroll in loyalty rewards program with tangible benefits at milestone anniversaries to encourage long-term retention. [{doc_ids[2]}]"
+        elif 'payment' in doc_summaries[2].lower() or 'flexible' in retrieved_docs[2]['content'].lower():
+            step3 = f"Establish flexible payment calendar aligned with customer cash flow patterns to prevent future payment-related lapses. [{doc_ids[2]}]"
+        elif 'digital' in doc_summaries[2].lower() or 'reminder' in retrieved_docs[2]['content'].lower():
+            step3 = f"Set up multi-channel automated reminders (30/14/7/1 day schedule) and enable self-service payment options for convenience. [{doc_ids[2]}]"
+        elif 'season' in doc_summaries[2].lower() or 'lifestyle' in retrieved_docs[2]['content'].lower():
+            step3 = f"Address seasonal patterns and lifestyle factors (smoker coaching, wellness programs) that influence retention and risk profile. [{doc_ids[2]}]"
         else:
-            step3 = f"Engage through digital channels with payment reminders, policy education content, and introductory retention discounts. [{doc_ids[2]}]"
+            step3 = f"Monitor engagement metrics and deploy proactive touchpoints to maintain relationship and prevent future lapse risk. [{doc_ids[2]}]"
         steps.append(f"3) {step3}")
         
         elapsed_ms = int((time.time() - start_time) * 1000)
@@ -167,7 +201,7 @@ class RAGSystem:
     
     def generate_lead_plan(self, lead_profile, retrieved_docs):
         """
-        Generate lead conversion plan (template-based).
+        Generate lead conversion plan using retrieved document content.
         
         Parameters:
         -----------
@@ -182,31 +216,67 @@ class RAGSystem:
         """
         start_time = time.time()
         
-        # Extract top 3 doc IDs
-        doc_ids = [doc['id'] for doc in retrieved_docs[:3]]
+        # Extract key themes from each retrieved document
+        doc_ids = []
+        doc_summaries = []
+        for doc in retrieved_docs[:3]:
+            doc_ids.append(doc['id'])
+            lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
+            if lines:
+                first_para = lines[0].split('.')[0] + '.'
+                doc_summaries.append(first_para)
+            else:
+                doc_summaries.append("lead conversion guidance")
         
-        # Generate 3 steps based on lead profile
+        # Generate 3 steps using retrieved content
         steps = []
-        
-        # Step 1: Segment-based messaging
         age = lead_profile.get('age', 35)
-        if age < 30:
-            step1 = f"Use mobile-first digital messaging emphasizing affordable protection and easy online enrollment for young professionals. [{doc_ids[0]}]"
-        elif age < 50:
-            step1 = f"Focus on family protection messaging with income replacement scenarios and coverage for dependents' future needs. [{doc_ids[0]}]"
+        
+        # Step 1: Use doc 0 content for messaging/segmentation
+        if 'segment' in doc_summaries[0].lower() or 'messaging' in retrieved_docs[0]['content'].lower():
+            if age < 30:
+                step1 = f"Deploy segment-targeted messaging for young professionals emphasizing mobile-first experience, transparent pricing, and digital enrollment convenience. [{doc_ids[0]}]"
+            elif age < 50:
+                step1 = f"Use family-focused messaging highlighting income replacement, dependent protection, and financial security for growing households. [{doc_ids[0]}]"
+            else:
+                step1 = f"Emphasize legacy planning and estate protection for retirees/pre-retirees with sophisticated financial integration messaging. [{doc_ids[0]}]"
+        elif 'cadence' in doc_summaries[0].lower() or 'contact' in retrieved_docs[0]['content'].lower():
+            step1 = f"Implement optimal contact cadence: initial response within 5 minutes (80% higher conversion), followed by strategic touchpoints at days 1, 3, 7, and 14. [{doc_ids[0]}]"
+        elif 'value' in doc_summaries[0].lower() or 'proposition' in retrieved_docs[0]['content'].lower():
+            step1 = f"Lead with clear value proposition highlighting customer-centric benefits, superior claims service, and competitive advantages with quantified savings. [{doc_ids[0]}]"
+        elif 'trial' in doc_summaries[0].lower() or 'offer' in retrieved_docs[0]['content'].lower():
+            step1 = f"Present risk-free trial with 30-60 day money-back guarantee and first-month discount to lower initial commitment barriers. [{doc_ids[0]}]"
         else:
-            step1 = f"Emphasize legacy planning and retirement security with sophisticated financial planning integration and estate protection. [{doc_ids[0]}]"
+            step1 = f"Apply targeted lead conversion strategy based on demographic profile and acquisition channel. [{doc_ids[0]}]"
         steps.append(f"1) {step1}")
         
-        # Step 2: Contact cadence
-        if lead_profile.get('has_agent_preference'):
-            step2 = f"Schedule agent consultation within 24 hours, follow up with personalized email next day, and maintain weekly touchpoints. [{doc_ids[1]}]"
+        # Step 2: Use doc 1 content for cadence/channel
+        if 'cadence' in doc_summaries[1].lower() or 'contact' in retrieved_docs[1]['content'].lower():
+            if lead_profile.get('has_agent_preference'):
+                step2 = f"Execute agent-led cadence: consultation within 24 hours, personalized email follow-up next day, maintain weekly touchpoints with consultative approach. [{doc_ids[1]}]"
+            else:
+                step2 = f"Deploy digital-first cadence: instant online quote, educational content day 3, live chat day 7, limited-time offer day 14 per optimal timing research. [{doc_ids[1]}]"
+        elif 'objection' in doc_summaries[1].lower() or 'handling' in retrieved_docs[1]['content'].lower():
+            step2 = f"Prepare objection handling framework: price (value demonstration), timing (urgency creation), competitor (differentiation), using feel-felt-found technique. [{doc_ids[1]}]"
+        elif 'channel' in doc_summaries[1].lower() or 'multi' in retrieved_docs[1]['content'].lower():
+            step2 = f"Coordinate multi-channel engagement (phone, email, chat, social) with unified message tracking and seamless hand-offs between touchpoints. [{doc_ids[1]}]"
+        elif 'value' in doc_summaries[1].lower() or 'proposition' in retrieved_docs[1]['content'].lower():
+            step2 = f"Communicate value proposition through customer testimonials, satisfaction scores, and third-party ratings to build credibility and trust. [{doc_ids[1]}]"
         else:
-            step2 = f"Initiate with instant online quote, send educational content day 3, offer live chat support day 7, and provide limited-time discount at day 14. [{doc_ids[1]}]"
+            step2 = f"Maintain consistent engagement through strategic follow-up sequence aligned with lead warming patterns. [{doc_ids[1]}]"
         steps.append(f"2) {step2}")
         
-        # Step 3: Objection handling and value
-        step3 = f"Address price concerns by demonstrating coverage value, offer trial period with money-back guarantee, and provide competitor comparison showing superior benefits. [{doc_ids[2]}]"
+        # Step 3: Use doc 2 content for objection/value/closing
+        if 'objection' in doc_summaries[2].lower() or 'objection' in retrieved_docs[2]['content'].lower():
+            step3 = f"Deploy objection handling: address price through value quantification, timing through limited offers, competitor through differentiation proof and superior service metrics. [{doc_ids[2]}]"
+        elif 'trial' in doc_summaries[2].lower() or 'offer' in retrieved_docs[2]['content'].lower():
+            step3 = f"Close with trial offer: 30-day free-look period, first-month discount (10-15% off), money-back guarantee to eliminate risk and accelerate decision. [{doc_ids[2]}]"
+        elif 'value' in doc_summaries[2].lower() or 'proposition' in retrieved_docs[2]['content'].lower():
+            step3 = f"Reinforce value proposition with specific benefits, customer success stories, and competitive comparisons showing 20-30% better value metrics. [{doc_ids[2]}]"
+        elif 'channel' in doc_summaries[2].lower() or 'channel' in retrieved_docs[2]['content'].lower():
+            step3 = f"Optimize channel strategy by measuring conversion rates per touchpoint (phone 35%, email 15%, chat 25%) and allocating resources accordingly. [{doc_ids[2]}]"
+        else:
+            step3 = f"Finalize conversion with clear call-to-action, simplified enrollment process, and immediate confirmation to secure commitment. [{doc_ids[2]}]"
         steps.append(f"3) {step3}")
         
         elapsed_ms = int((time.time() - start_time) * 1000)

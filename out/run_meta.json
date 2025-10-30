@@ -1,6 +1,6 @@
 {
   "seed": 42,
-  "elapsed_sec": 12.05,
+  "elapsed_sec": 10.97,
   "n_policies": 2000,
   "n_months_persist": 12,
   "n_months_internal": 15,
