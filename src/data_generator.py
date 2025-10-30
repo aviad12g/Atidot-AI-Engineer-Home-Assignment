@@ -50,8 +50,12 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
     
     # Generate monthly panel (all months in memory)
     start_date = datetime(2023, 1, 1)
-    months = [(start_date + timedelta(days=30*i)).strftime("%Y-%m") 
-             for i in range(n_months_total)]
+    months = []
+    for i in range(n_months_total):
+        # Proper month increment (handles different month lengths)
+        year = start_date.year + (start_date.month + i - 1) // 12
+        month = (start_date.month + i - 1) % 12 + 1
+        months.append(f"{year:04d}-{month:02d}")
     
     # Create panel structure
     records = []

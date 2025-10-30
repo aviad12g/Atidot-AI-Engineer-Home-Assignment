@@ -1,9 +1,9 @@
 {
-  "auc_pr": 0.13844811210114735,
-  "roc_auc": 0.5921784217629092,
-  "brier": 0.22022374654259902,
-  "precision_at_1pct": 0.2,
-  "precision_at_5pct": 0.17,
-  "prevalence_train": 0.09022222222222222,
-  "prevalence_test": 0.0975
+  "auc_pr": 0.1238371859130088,
+  "roc_auc": 0.6031349034694548,
+  "brier": 0.2335675206128534,
+  "precision_at_1pct": 0.15,
+  "precision_at_5pct": 0.165,
+  "prevalence_train": 0.0925625,
+  "prevalence_test": 0.0895
 }
