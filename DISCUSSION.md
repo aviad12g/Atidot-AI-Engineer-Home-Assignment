@@ -50,15 +50,23 @@ We trained three models on the same train/val split to quantify XGBoost's value:
 
 | Model           | Val AUC-PR | Description                        |
 |-----------------|------------|------------------------------------|
-| Dummy           | ~0.12-0.15 | Always predicts base rate          |
-| Logistic Reg    | ~0.25-0.35 | Linear relationships only          |
-| XGBoost (tuned) | ~0.40-0.55 | Non-linear, interactions, tuned HP |
+| Dummy           | ~0.09      | Always predicts base rate          |
+| Logistic Reg    | ~0.10-0.11 | Linear relationships only          |
+| XGBoost (tuned) | ~0.12-0.13 | Non-linear, interactions, tuned HP |
 
-**Takeaway:** XGBoost substantially outperforms baselines, justifying the added complexity. The ~10-20 point AUC-PR gain over logistic regression translates to significantly better identification of high-risk customers.
+**Takeaway:** All models show modest performance due to inherent noise in the synthetic data and class imbalance (9% prevalence). XGBoost provides incremental gains over baselines. The key demonstration here is **methodological soundness**: temporal splits, leakage guards, proper tuning, and SHAP explainability, which would transfer to real-world data with stronger signal.
+
+**Why performance is modest:**
+- Synthetic data has limited signal-to-noise ratio
+- Only 2000 policies × 12 months = 24K rows for training
+- 9% prevalence creates class imbalance challenges
+- Deliberate drift simulation adds complexity
+
+**Production improvement paths:** More features (behavioral sequences, claim history), larger datasets, ensemble methods, and threshold tuning would improve lift. This implementation focuses on demonstrating best practices for temporal ML pipelines.
 
 *Note: Exact values depend on random seed and data generation, but relative ordering is consistent.*
 
-See `out/metrics.json` and `out/run_meta.json` for actual values from your run.
+See `out/metrics.json` for actual test metrics from your run.
 
 ## Model Selection: Why XGBoost?
 

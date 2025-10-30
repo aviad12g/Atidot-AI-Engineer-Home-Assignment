@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 import joblib
-from scipy.sparse import issparse, vstack as sparse_vstack
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer

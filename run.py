@@ -31,6 +31,7 @@ def main():
     drift_start = config['drift_start_month']
     n_trials = config['n_tuning_trials']
     shap_max = config['shap_max_samples']
+    rag_top_k = config['rag_top_k']
     
     # Set global seed
     print("="*60)
@@ -121,7 +122,8 @@ def main():
         audit = run_rag_pipeline(
             results['preds_df'],
             df,  # Use full data for customer profiles
-            output_dir='out'
+            output_dir='out',
+            top_k=rag_top_k
         )
         
         # Step 5: Save run metadata

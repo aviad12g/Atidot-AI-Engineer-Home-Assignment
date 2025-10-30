@@ -105,6 +105,7 @@ class RAGSystem:
     def generate_lapse_plan(self, customer_profile, retrieved_docs):
         """
         Generate lapse prevention plan using retrieved document content.
+        Strategy varies by risk bucket to ensure differentiation.
         
         Parameters:
         -----------
@@ -139,56 +140,68 @@ class RAGSystem:
         prob = customer_profile['lapse_probability']
         risk = customer_profile['risk_bucket']
         
-        # Step 1: Use doc 0 content for immediate action
-        if 'grace' in doc_summaries[0].lower() or 'grace' in retrieved_docs[0]['content'].lower():
-            step1 = f"At {prob:.0%} lapse risk, activate grace period extension (15-30 days) per retention best practices, and initiate contact within 48 hours to discuss payment flexibility. [{doc_ids[0]}]"
-        elif 'agent' in doc_summaries[0].lower() or 'outreach' in retrieved_docs[0]['content'].lower():
-            step1 = f"At {prob:.0%} lapse risk, assign dedicated agent for immediate personal outreach (within 24-48 hours) to address concerns and review policy value. [{doc_ids[0]}]"
-        elif 'payment' in doc_summaries[0].lower() or 'flexible' in retrieved_docs[0]['content'].lower():
-            step1 = f"At {prob:.0%} lapse risk, offer flexible payment plans (biweekly, monthly, or deferred options) to maintain coverage during financial challenges. [{doc_ids[0]}]"
-        elif 'loyalty' in doc_summaries[0].lower() or 'reward' in retrieved_docs[0]['content'].lower():
-            step1 = f"At {prob:.0%} lapse risk, apply loyalty rewards and tenure-based discounts (5-15% off) to demonstrate value and prevent lapse. [{doc_ids[0]}]"
-        elif 'digital' in doc_summaries[0].lower() or 'reminder' in retrieved_docs[0]['content'].lower():
-            step1 = f"At {prob:.0%} lapse risk, deploy automated reminder system via email/SMS with one-click payment links to reduce unintentional lapse. [{doc_ids[0]}]"
-        else:
-            step1 = f"At {prob:.0%} lapse risk, implement personalized retention strategy based on customer profile and risk factors. [{doc_ids[0]}]"
+        # RISK-DIFFERENTIATED STRATEGIES: High/Mid/Low use different urgency and tactics
+        
+        # Step 1: Immediate action (varies by risk level)
+        if risk == 'high':
+            # High risk: URGENT intervention
+            if 'grace' in doc_summaries[0].lower() or 'grace' in retrieved_docs[0]['content'].lower():
+                step1 = f"URGENT: At {prob:.0%} lapse risk, activate IMMEDIATE grace period extension (30 days) and escalate to senior retention specialist within 24 hours. [{doc_ids[0]}]"
+            elif 'agent' in doc_summaries[0].lower() or 'outreach' in retrieved_docs[0]['content'].lower():
+                step1 = f"URGENT: At {prob:.0%} lapse risk, deploy TOP-TIER agent for emergency outreach within 12 hours with authority to offer significant concessions. [{doc_ids[0]}]"
+            else:
+                step1 = f"URGENT: At {prob:.0%} lapse risk, initiate EMERGENCY retention protocol with premium hold, immediate callback, and executive escalation path. [{doc_ids[0]}]"
+        elif risk == 'mid':
+            # Mid risk: Proactive but measured
+            if 'payment' in doc_summaries[0].lower() or 'flexible' in retrieved_docs[0]['content'].lower():
+                step1 = f"At {prob:.0%} lapse risk, proactively offer flexible payment options (biweekly/monthly) before next billing cycle. [{doc_ids[0]}]"
+            elif 'loyalty' in doc_summaries[0].lower() or 'reward' in retrieved_docs[0]['content'].lower():
+                step1 = f"At {prob:.0%} lapse risk, apply loyalty incentives (5-10% discount) and highlight tenure benefits to reinforce value. [{doc_ids[0]}]"
+            else:
+                step1 = f"At {prob:.0%} lapse risk, schedule proactive check-in call within 5 days to review policy fit and address concerns. [{doc_ids[0]}]"
+        else:  # low risk
+            # Low risk: Preventive, low-touch
+            if 'digital' in doc_summaries[0].lower() or 'reminder' in retrieved_docs[0]['content'].lower():
+                step1 = f"At {prob:.0%} lapse risk, maintain automated engagement via email/SMS reminders and self-service portal. [{doc_ids[0]}]"
+            elif 'loyalty' in doc_summaries[0].lower():
+                step1 = f"At {prob:.0%} lapse risk, enroll in preventive loyalty program with milestone rewards to sustain long-term retention. [{doc_ids[0]}]"
+            else:
+                step1 = f"At {prob:.0%} lapse risk, continue standard service cadence with periodic check-ins and satisfaction surveys. [{doc_ids[0]}]"
         steps.append(f"1) {step1}")
         
-        # Step 2: Use doc 1 content for relationship/value
-        if 'agent' in doc_summaries[1].lower() or 'agent' in retrieved_docs[1]['content'].lower():
+        # Step 2: Relationship/value building (differentiated by risk)
+        if risk == 'high':
+            # High risk needs human touch + deep incentives
             if customer_profile['has_agent']:
-                step2 = f"Leverage existing agent relationship for personalized policy review emphasizing 40-60% higher retention rates with agent contact. [{doc_ids[1]}]"
+                step2 = f"Activate EXISTING agent for intensive intervention: daily check-ins, custom payment plan, and policy restructuring options. [{doc_ids[1]}]"
             else:
-                step2 = f"Assign dedicated agent immediately to establish personal relationship and explore coverage adjustments that improve retention by 40-60%. [{doc_ids[1]}]"
-        elif 'payment' in doc_summaries[1].lower() or 'plan' in retrieved_docs[1]['content'].lower():
-            step2 = f"Offer payment plan modifications (frequency changes, temporary deferrals, or installment options) to maintain coverage affordability. [{doc_ids[1]}]"
-        elif 'loyalty' in doc_summaries[1].lower() or 'incentive' in retrieved_docs[1]['content'].lower():
+                step2 = f"Assign PREMIUM agent immediately with authorization for expedited underwriting, coverage adjustments, and retention budget. [{doc_ids[1]}]"
+        elif risk == 'mid':
+            # Mid risk benefits from moderate personalization
             tenure = customer_profile['tenure_m']
-            step2 = f"Apply {tenure}-month tenure loyalty benefits including premium credits, anniversary bonuses, and exclusive retention offers. [{doc_ids[1]}]"
-        elif 'digital' in doc_summaries[1].lower() or 'engagement' in retrieved_docs[1]['content'].lower():
-            step2 = f"Increase digital engagement through portal access, mobile app features, and automated coverage summaries to maintain active relationship. [{doc_ids[1]}]"
-        else:
-            step2 = f"Provide personalized value demonstration through coverage review and savings summary to reinforce policy benefits. [{doc_ids[1]}]"
+            if 'loyalty' in doc_summaries[1].lower():
+                step2 = f"Leverage {tenure}-month tenure history: offer anniversary rewards, refer-a-friend bonus, and personalized coverage review. [{doc_ids[1]}]"
+            else:
+                step2 = f"Provide mid-tier value demonstration: coverage gap analysis, savings calculator, and tailored add-on recommendations. [{doc_ids[1]}]"
+        else:  # low risk
+            # Low risk: automated value reinforcement
+            step2 = f"Deploy automated value reinforcement: quarterly coverage summaries, digital wellness tools, and self-service upgrade paths. [{doc_ids[1]}]"
         steps.append(f"2) {step2}")
         
-        # Step 3: Use doc 2 content for long-term retention
-        tenure = customer_profile['tenure_m']
-        if 'loyalty' in doc_summaries[2].lower() or 'loyalty' in retrieved_docs[2]['content'].lower():
-            if tenure >= 60:
-                step3 = f"Implement tiered loyalty program benefits (premium discount 10-15%, priority service, enhanced coverage) for {tenure}-month tenure milestone. [{doc_ids[2]}]"
-            else:
-                step3 = f"Enroll in loyalty rewards program with tangible benefits at milestone anniversaries to encourage long-term retention. [{doc_ids[2]}]"
-        elif 'payment' in doc_summaries[2].lower() or 'flexible' in retrieved_docs[2]['content'].lower():
-            step3 = f"Establish flexible payment calendar aligned with customer cash flow patterns to prevent future payment-related lapses. [{doc_ids[2]}]"
-        elif 'digital' in doc_summaries[2].lower() or 'reminder' in retrieved_docs[2]['content'].lower():
-            step3 = f"Set up multi-channel automated reminders (30/14/7/1 day schedule) and enable self-service payment options for convenience. [{doc_ids[2]}]"
-        elif 'season' in doc_summaries[2].lower() or 'lifestyle' in retrieved_docs[2]['content'].lower():
-            step3 = f"Address seasonal patterns and lifestyle factors (smoker coaching, wellness programs) that influence retention and risk profile. [{doc_ids[2]}]"
-        else:
-            step3 = f"Monitor engagement metrics and deploy proactive touchpoints to maintain relationship and prevent future lapse risk. [{doc_ids[2]}]"
+        # Step 3: Long-term retention strategy (varies by risk)
+        if risk == 'high':
+            # High risk: aggressive save tactics
+            step3 = f"Implement SAVE plan: 90-day check-in calendar, premium freeze option, and fast-track claims service to rebuild trust. [{doc_ids[2]}]"
+        elif risk == 'mid':
+            # Mid risk: proactive monitoring
+            step3 = f"Establish proactive monitoring: bi-monthly touchpoints, seasonal review schedule, and early warning triggers for future risk. [{doc_ids[2]}]"
+        else:  # low risk
+            # Low risk: passive engagement
+            step3 = f"Maintain passive engagement: annual review invitations, NPS surveys, and opt-in educational content to sustain satisfaction. [{doc_ids[2]}]"
         steps.append(f"3) {step3}")
         
-        elapsed_ms = int((time.time() - start_time) * 1000)
+        # Use microseconds precision to capture sub-millisecond operations
+        elapsed_ms = round((time.time() - start_time) * 1000, 3)
         
         return {
             'risk_bucket': risk,
@@ -279,7 +292,8 @@ class RAGSystem:
             step3 = f"Finalize conversion with clear call-to-action, simplified enrollment process, and immediate confirmation to secure commitment. [{doc_ids[2]}]"
         steps.append(f"3) {step3}")
         
-        elapsed_ms = int((time.time() - start_time) * 1000)
+        # Use microseconds precision to capture sub-millisecond operations
+        elapsed_ms = round((time.time() - start_time) * 1000, 3)
         
         return {
             'risk_bucket': 'n/a',
@@ -351,9 +365,20 @@ def create_synthetic_leads(n_leads=3):
     return leads
 
 
-def run_rag_pipeline(preds_df, full_df, output_dir='out'):
+def run_rag_pipeline(preds_df, full_df, output_dir='out', top_k=3):
     """
     Complete RAG pipeline for lapse prevention and lead conversion.
+    
+    Parameters:
+    -----------
+    preds_df : pd.DataFrame
+        Predictions dataframe
+    full_df : pd.DataFrame
+        Full dataset for customer profiles
+    output_dir : str
+        Output directory for artifacts
+    top_k : int
+        Number of documents to retrieve (from config)
     
     Returns:
     --------
@@ -363,7 +388,7 @@ def run_rag_pipeline(preds_df, full_df, output_dir='out'):
     rag = RAGSystem(
         lapse_docs_dir='out/rag/lapse',
         lead_docs_dir='out/rag/lead',
-        top_k=3
+        top_k=top_k
     )
     
     # Select lapse customers
