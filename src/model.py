@@ -1,6 +1,7 @@
 """Model training, evaluation, and explainability."""
 import numpy as np
 import pandas as pd
+import joblib
 from scipy.sparse import issparse, vstack as sparse_vstack
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -12,7 +13,6 @@ from sklearn.metrics import (
     average_precision_score,
     roc_auc_score,
     brier_score_loss,
-    precision_score,
 )
 from xgboost import XGBClassifier
 import shap
@@ -382,6 +382,15 @@ def run_modeling_pipeline(train_df, val_df, test_df, output_dir='out',
     
     # Plot SHAP
     plot_shap_bar(shap_values, feature_names, f'{output_dir}/shap_bar.png', top_k=20)
+    
+    # Save the trained model
+    print("Saving trained model...")
+    model_artifact = {
+        'preprocessor': preprocessor,
+        'classifier': best_clf,
+        'params': best_params,
+    }
+    joblib.dump(model_artifact, f'{output_dir}/model.pkl')
     
     return {
         'preprocessor': preprocessor,

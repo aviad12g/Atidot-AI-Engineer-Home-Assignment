@@ -125,15 +125,16 @@ class RAGSystem:
         
         # Generate 3 steps based on customer profile
         steps = []
+        prob = customer_profile['lapse_probability']
         
-        # Step 1: Based on risk level
+        # Step 1: Based on risk level with probability embedded
         risk = customer_profile['risk_bucket']
         if risk == 'high':
-            step1 = f"Immediately activate grace period extension and contact customer within 24 hours to discuss financial hardship options. [{doc_ids[0]}]"
+            step1 = f"At {prob:.0%} lapse risk, immediately activate grace period extension and contact customer within 24 hours to discuss financial hardship options. [{doc_ids[0]}]"
         elif risk == 'mid':
-            step1 = f"Schedule proactive agent outreach within 3-5 days to review coverage needs and identify concerns before renewal. [{doc_ids[0]}]"
+            step1 = f"With {prob:.0%} lapse probability, schedule proactive agent outreach within 3-5 days to review coverage needs and identify concerns before renewal. [{doc_ids[0]}]"
         else:
-            step1 = f"Send automated reminder with loyalty rewards information and confirm coverage adequacy for continued satisfaction. [{doc_ids[0]}]"
+            step1 = f"At {prob:.0%} risk level, send automated reminder with loyalty rewards information and confirm coverage adequacy for continued satisfaction. [{doc_ids[0]}]"
         steps.append(f"1) {step1}")
         
         # Step 2: Based on agent status and premium
