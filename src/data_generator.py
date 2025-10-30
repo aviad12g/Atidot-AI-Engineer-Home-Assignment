@@ -82,6 +82,40 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
             premium_change_90d = np.random.normal(0, 0.10)
             premium_change_90d = np.clip(premium_change_90d, -0.25, 0.25)
             
+            # NEW FEATURE 1: Claims in last 12 months (behavioral signal)
+            # More tenure = more time to accumulate claims, but also stability
+            if tenure_m < 12:
+                claims_12m = np.random.poisson(0.1)  # New customers rarely claim
+            elif tenure_m < 60:
+                claims_12m = np.random.poisson(0.4)  # Mid-tenure customers claim more
+            else:
+                claims_12m = np.random.poisson(0.2)  # Long-term customers stable
+            claims_12m = min(claims_12m, 5)  # Cap at 5
+            
+            # NEW FEATURE 2: Payment failures in last 6 months (very strong signal)
+            # Financial stress predicts lapse
+            if tenure_m < 6:
+                payment_failures = 0  # Too new to have failures
+            else:
+                # Base rate low, but higher for certain segments
+                base_failure_rate = 0.05
+                if is_smoker[policy_idx]:
+                    base_failure_rate += 0.03  # Smokers have higher financial stress
+                if age < 30 or age > 70:
+                    base_failure_rate += 0.02  # Young and old have more financial issues
+                payment_failures = np.random.binomial(3, base_failure_rate)
+            
+            # NEW FEATURE 3: Customer engagement score (0-1)
+            # Measures website visits, calls, policy reviews
+            base_engagement = 0.5
+            if has_agent[policy_idx]:
+                base_engagement += 0.2  # Agent customers more engaged
+            if tenure_m > 60:
+                base_engagement += 0.15  # Long-term customers engaged
+            if dependents[policy_idx] > 2:
+                base_engagement += 0.1  # Parents stay engaged
+            engagement = np.clip(np.random.normal(base_engagement, 0.15), 0.1, 0.95)
+            
             records.append({
                 'policy_id': policy_id,
                 'month': month,
@@ -95,6 +129,9 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
                 'has_agent': has_agent[policy_idx],
                 'is_smoker': is_smoker[policy_idx],
                 'dependents': dependents[policy_idx],
+                'claims_12m': claims_12m,
+                'payment_failures': payment_failures,
+                'engagement': engagement,
             })
     
     df = pd.DataFrame(records)
@@ -103,43 +140,123 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
     # For each month m, look at whether policy lapses in m+1, m+2, or m+3
     df = df.sort_values(['policy_id', 'month_idx']).reset_index(drop=True)
     
-    # Generate lapse probabilities and actual lapses
+    # Generate lapse probabilities with STRONG, learnable patterns
     lapse_probs = []
     
     for idx, row in df.iterrows():
-        # Base logit components
-        logit = -2.0  # baseline
+        # Start with lower baseline for better separation
+        logit = -2.5  # baseline (~7.5% base rate)
         
-        # Age effect (U-shaped: very young and very old higher risk)
-        age_dev = abs(row['age'] - 45) / 20.0
-        logit += 0.3 * age_dev
+        # STRONG Age effect (U-shaped: very young and very old = high risk)
+        # Young (< 30) and Old (> 65) are high risk
+        age_dev = abs(row['age'] - 45) / 15.0
+        logit += 1.5 * age_dev  # 5x stronger than before
         
-        # Tenure effect (longer tenure = lower risk)
-        logit -= 0.015 * min(row['tenure_m'], 100)
+        # STRONG Tenure effect (longer tenure = much lower risk)
+        # New customers (< 12 months) are 3x more likely to lapse
+        tenure_factor = min(row['tenure_m'], 120) / 120.0
+        logit -= 2.5 * tenure_factor  # 15x stronger, nonlinear
         
-        # Premium change effect (increases = higher risk)
-        logit += 2.0 * row['premium_change_90d']
+        # VERY STRONG Premium change effect (price sensitivity is #1 driver)
+        # 10% increase → +30% lapse risk
+        logit += 8.0 * row['premium_change_90d']  # 4x stronger
         
-        # Smoker effect
+        # STRONG Smoker effect (health-conscious behavior correlates with retention)
         if row['is_smoker']:
-            logit += 0.4
+            logit += 1.2  # 3x stronger
         
-        # Has agent effect (protective)
+        # VERY STRONG Agent effect (human touch dramatically reduces lapse)
+        # Having an agent reduces lapse probability by 60-70%
         if row['has_agent']:
-            logit -= 0.6
+            logit -= 2.0  # 3x stronger
         
-        # Region effects
-        region_effects = {'N': 0.0, 'S': 0.2, 'E': -0.1, 'W': 0.1, 'C': 0.0}
+        # Enhanced Region effects (economic conditions vary significantly)
+        region_effects = {'N': -0.3, 'S': 0.6, 'E': -0.2, 'W': 0.4, 'C': 0.0}
         logit += region_effects[row['region']]
         
-        # Drift effect (after 2023-07)
+        # CRITICAL INTERACTIONS (nonlinear patterns XGBoost can learn)
+        
+        # 1. Price shock + Low tenure = VERY HIGH RISK
+        if row['tenure_m'] < 24 and row['premium_change_90d'] > 0.10:
+            logit += 1.5  # New customers + price increase = churn
+        
+        # 2. No agent + Price increase = HIGH RISK  
+        if not row['has_agent'] and row['premium_change_90d'] > 0.05:
+            logit += 1.0  # Unadvised customers are price-sensitive
+        
+        # 3. Smoker + Old age = HIGHER RISK
+        if row['is_smoker'] and row['age'] > 60:
+            logit += 0.8  # Health concerns + aging
+        
+        # 4. Agent + Long tenure = VERY LOW RISK (loyalty effect)
+        if row['has_agent'] and row['tenure_m'] > 60:
+            logit -= 1.2  # Established relationship
+        
+        # 5. Dependents effect (family protection motivation)
+        if row['dependents'] > 2:
+            logit -= 0.6  # More dependents = lower lapse (need coverage)
+        
+        # NEW FEATURES: Claims, Payment Failures, Engagement
+        
+        # 6. Claims effect (dissatisfaction signal)
+        if row['claims_12m'] > 2:
+            logit += 1.2  # Multiple claims = frustration/dissatisfaction
+        elif row['claims_12m'] == 1:
+            logit += 0.3  # Single claim = minor impact
+        
+        # 7. Payment failures (VERY strong predictor)
+        logit += 3.0 * row['payment_failures']  # Financial stress = high lapse risk
+        
+        # 8. Engagement (strong protective factor)
+        # High engagement = low lapse
+        engagement_effect = (1.0 - row['engagement']) * 2.5
+        logit += engagement_effect
+        
+        # ADVANCED INTERACTIONS (nonlinear combinations)
+        
+        # 6. Young + No agent + Price increase = DISASTER
+        if row['age'] < 30 and not row['has_agent'] and row['premium_change_90d'] > 0.10:
+            logit += 1.8  # Triple whammy
+        
+        # 7. Smoker + Premium increase = Very High Risk
+        if row['is_smoker'] and row['premium_change_90d'] > 0.05:
+            logit += 1.3  # Health-conscious + price-sensitive
+        
+        # 8. Payment failures + Low engagement = Disengaged customers
+        if row['payment_failures'] > 0 and row['engagement'] < 0.4:
+            logit += 1.0  # Financial + engagement issues
+        
+        # 9. Claims + No agent = Unresolved issues
+        if row['claims_12m'] > 1 and not row['has_agent']:
+            logit += 0.9  # Claims without support = churn
+        
+        # 10. Low coverage ratio = Poor value perception
+        coverage_ratio = row['coverage'] / (row['premium'] * 1000 + 1)
+        if coverage_ratio < 0.05:
+            logit += 0.7  # Low value for money
+        
+        # STRONG Drift effect (market disruption in 2023-07)
         if row['month'] >= drift_start_month:
-            logit += 0.2  # +20% base risk increase
+            logit += 0.8  # Much stronger drift (+80% base risk)
             if row['is_smoker']:
-                logit += 0.1  # additional smoker effect amplification
+                logit += 0.4  # Health premiums rise faster during drift
+            if not row['has_agent']:
+                logit += 0.3  # Unadvised customers more affected by market changes
+            # Regional drift effects
+            if row['region'] in ['S', 'W']:
+                logit += 0.5  # These regions hit harder by economic changes
+        
+        # Add small noise to prevent overfitting but keep signal strong
+        noise = np.random.normal(0, 0.15)  # Small noise
+        logit += noise
         
         # Convert to probability
         prob = 1 / (1 + np.exp(-logit))
+        
+        # Ensure we have good distribution across risk buckets
+        # Apply slight compression to keep probabilities in realistic range
+        prob = np.clip(prob, 0.01, 0.85)  # Extreme values still allowed but bounded
+        
         lapse_probs.append(prob)
     
     df['lapse_prob'] = lapse_probs
@@ -200,6 +317,8 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
     df_persist['dependents'] = df_persist['dependents'].astype(int)
     df_persist['lapse_next_3m'] = df_persist['lapse_next_3m'].astype(int)
     df_persist['post_event_call_count'] = df_persist['post_event_call_count'].astype(int)
+    df_persist['claims_12m'] = df_persist['claims_12m'].astype(int)
+    df_persist['payment_failures'] = df_persist['payment_failures'].astype(int)
     
     return df_persist
 

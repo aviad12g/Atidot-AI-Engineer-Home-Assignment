@@ -1,11 +1,11 @@
 {
   "seed": 42,
-  "elapsed_sec": 12.14,
+  "elapsed_sec": 21.16,
   "n_policies": 2000,
   "n_months_persist": 12,
   "n_months_internal": 15,
   "drift_start_month": "2023-07",
-  "n_tuning_trials": 20,
+  "n_tuning_trials": 35,
   "shap_sample_size": 500,
   "package_versions": {
     "python": "3.9.6",
