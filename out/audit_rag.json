@@ -1,0 +1,95 @@
+{
+  "plans": [
+    {
+      "plan_id": 0,
+      "plan_type": "lapse",
+      "retrieved_ids": [
+        "Doc#1",
+        "Doc#3",
+        "Doc#5"
+      ],
+      "cited_ids": [
+        "Doc#1",
+        "Doc#3",
+        "Doc#5"
+      ],
+      "faithful": true
+    },
+    {
+      "plan_id": 1,
+      "plan_type": "lapse",
+      "retrieved_ids": [
+        "Doc#1",
+        "Doc#4",
+        "Doc#5"
+      ],
+      "cited_ids": [
+        "Doc#1",
+        "Doc#4",
+        "Doc#5"
+      ],
+      "faithful": true
+    },
+    {
+      "plan_id": 2,
+      "plan_type": "lapse",
+      "retrieved_ids": [
+        "Doc#1",
+        "Doc#3",
+        "Doc#5"
+      ],
+      "cited_ids": [
+        "Doc#1",
+        "Doc#3",
+        "Doc#5"
+      ],
+      "faithful": true
+    },
+    {
+      "plan_id": 3,
+      "plan_type": "lead",
+      "retrieved_ids": [
+        "Doc#4",
+        "Doc#1",
+        "Doc#3"
+      ],
+      "cited_ids": [
+        "Doc#4",
+        "Doc#1",
+        "Doc#3"
+      ],
+      "faithful": true
+    },
+    {
+      "plan_id": 4,
+      "plan_type": "lead",
+      "retrieved_ids": [
+        "Doc#4",
+        "Doc#1",
+        "Doc#2"
+      ],
+      "cited_ids": [
+        "Doc#4",
+        "Doc#1",
+        "Doc#2"
+      ],
+      "faithful": true
+    },
+    {
+      "plan_id": 5,
+      "plan_type": "lead",
+      "retrieved_ids": [
+        "Doc#4",
+        "Doc#2",
+        "Doc#1"
+      ],
+      "cited_ids": [
+        "Doc#4",
+        "Doc#2",
+        "Doc#1"
+      ],
+      "faithful": true
+    }
+  ],
+  "faithful_percent": 100.0
+}

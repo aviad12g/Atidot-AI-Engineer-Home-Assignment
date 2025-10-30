@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Output artifacts (optional: you might want to commit sample outputs)
+# Uncomment the next line if you want to exclude outputs from git:
+# out/
+
+# Temporary files
+*.log
+.implementation-summary.md
+

@@ -1,0 +1,21 @@
+{
+  "seed": 42,
+  "elapsed_sec": 12.69,
+  "n_policies": 2000,
+  "n_months_persist": 12,
+  "n_months_internal": 15,
+  "drift_start_month": "2023-07",
+  "n_tuning_trials": 20,
+  "shap_sample_size": 500,
+  "package_versions": {
+    "python": "3.9.6",
+    "numpy": "1.26.4",
+    "scipy": "1.11.4",
+    "pandas": "2.1.4",
+    "scikit-learn": "1.4.2",
+    "xgboost": "2.0.3",
+    "shap": "0.45.0",
+    "matplotlib": "3.8.4"
+  },
+  "note": "Offline, no API keys, no LLM"
+}

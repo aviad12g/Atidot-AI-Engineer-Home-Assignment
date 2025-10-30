@@ -1,0 +1,9 @@
+{
+  "train_max": "2023-08",
+  "val_min": "2023-09",
+  "val_max": "2023-10",
+  "test_min": "2023-11",
+  "train_max<val_min": true,
+  "val_max<test_min": true,
+  "overlap": false
+}

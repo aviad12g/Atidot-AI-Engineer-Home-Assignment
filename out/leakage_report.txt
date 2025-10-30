@@ -1,0 +1,7 @@
+Leakage Guard Report
+========================================
+
+Dropped 1 column(s):
+  - post_event_call_count
+
+These features are post-event and would cause data leakage.
