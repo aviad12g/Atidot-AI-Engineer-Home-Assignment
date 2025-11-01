@@ -1,7 +1,7 @@
 {
   "plans": [
     {
-      "plan_id": 474,
+      "plan_id": 1237,
       "retrieved_ids": [
         "Doc1",
         "Doc2",
@@ -15,7 +15,7 @@
       "faithful": true
     },
     {
-      "plan_id": 1339,
+      "plan_id": 256,
       "retrieved_ids": [
         "Doc1",
         "Doc2",
@@ -29,7 +29,7 @@
       "faithful": true
     },
     {
-      "plan_id": 648,
+      "plan_id": 408,
       "retrieved_ids": [
         "Doc1",
         "Doc2",
