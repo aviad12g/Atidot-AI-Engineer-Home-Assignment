@@ -16,15 +16,15 @@ Starting 2023-07, we added +80% base risk and amplified smoker/regional effects 
 
 ## SHAP Insights
 
-Top risk drivers (mean absolute SHAP values):
+Top risk drivers (mean absolute SHAP values, 300 test samples):
 
-1. **Payment failures** - Financial stress is the strongest lapse signal.
-2. **Premium increases** - Price sensitivity drives most lapses.
-3. **Low engagement** - Disengaged customers are 2.5x more likely to lapse.
-4. **Short tenure** - New customers lack loyalty.
-5. **No agent** - Personal touch reduces lapse by ~60%.
+1. **No agent relationship** – Lack of an agent remains the largest single driver of lapse risk.
+2. **Age curve** – Very young and older policyholders push predictions upward, consistent with the synthetic risk design.
+3. **Smoker status** – Smoker vs. non-smoker signals materially shift risk scores.
+4. **Regional exposure (South/West)** – These regions contribute the strongest uplift after the drift event.
+5. **Engagement & dependents depth** – Lower engagement and fewer dependents raise risk, while high engagement offsets it.
 
-The model also captures interaction effects: payment failures + low engagement, young + no agent + price increase, and claims without agent support.
+Payment failures and recent claims are now part of the feature set; they surface mainly through interaction splits rather than the global top-5 importances.
 
 ## Ablation
 

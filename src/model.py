@@ -323,7 +323,17 @@ def run_modeling_pipeline(train_df, val_df, test_df, output_dir='out',
     feature_cols = [c for c in train_df.columns if c not in exclude_cols]
     
     # Separate numeric and categorical
-    numeric_features = ['age', 'tenure_m', 'premium', 'coverage', 'premium_change_90d', 'dependents']
+    numeric_features = [
+        'age',
+        'tenure_m',
+        'premium',
+        'coverage',
+        'premium_change_90d',
+        'dependents',
+        'claims_12m',
+        'payment_failures',
+        'engagement',
+    ]
     categorical_features = ['region', 'has_agent', 'is_smoker']
     
     # Ensure features exist
@@ -401,4 +411,3 @@ def run_modeling_pipeline(train_df, val_df, test_df, output_dir='out',
         'preds_df': preds_df,
         'shap_sample_size': n_sample,
     }
-

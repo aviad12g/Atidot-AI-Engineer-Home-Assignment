@@ -5,13 +5,13 @@
       "plan_type": "lapse",
       "retrieved_ids": [
         "Doc#1",
-        "Doc#3",
-        "Doc#5"
+        "Doc#5",
+        "Doc#3"
       ],
       "cited_ids": [
         "Doc#1",
-        "Doc#3",
-        "Doc#5"
+        "Doc#5",
+        "Doc#3"
       ],
       "faithful": true
     },
@@ -20,13 +20,13 @@
       "plan_type": "lapse",
       "retrieved_ids": [
         "Doc#1",
-        "Doc#3",
-        "Doc#5"
+        "Doc#5",
+        "Doc#3"
       ],
       "cited_ids": [
         "Doc#1",
-        "Doc#3",
-        "Doc#5"
+        "Doc#5",
+        "Doc#3"
       ],
       "faithful": true
     },
@@ -35,13 +35,13 @@
       "plan_type": "lapse",
       "retrieved_ids": [
         "Doc#1",
-        "Doc#4",
-        "Doc#5"
+        "Doc#5",
+        "Doc#3"
       ],
       "cited_ids": [
         "Doc#1",
-        "Doc#4",
-        "Doc#5"
+        "Doc#5",
+        "Doc#3"
       ],
       "faithful": true
     },
@@ -65,13 +65,13 @@
       "plan_type": "lead",
       "retrieved_ids": [
         "Doc#1",
-        "Doc#2",
-        "Doc#4"
+        "Doc#4",
+        "Doc#2"
       ],
       "cited_ids": [
         "Doc#1",
-        "Doc#2",
-        "Doc#4"
+        "Doc#4",
+        "Doc#2"
       ],
       "faithful": true
     },
@@ -80,13 +80,13 @@
       "plan_type": "lead",
       "retrieved_ids": [
         "Doc#1",
-        "Doc#2",
-        "Doc#4"
+        "Doc#4",
+        "Doc#2"
       ],
       "cited_ids": [
         "Doc#1",
-        "Doc#2",
-        "Doc#4"
+        "Doc#4",
+        "Doc#2"
       ],
       "faithful": true
     }

@@ -403,9 +403,12 @@ def run_rag_pipeline(preds_df, full_df, output_dir='out', top_k=3):
             (full_df['month'] == customer['month'])
         ].iloc[0]
         
-        # Build query
-        query = f"High risk customer age {customer_row['age']}, tenure {customer_row['tenure_m']} months, " \
-                f"premium ${customer_row['premium']:.0f}, lapse probability {customer['lapse_probability']:.2%}"
+        # Build query (include risk bucket to drive differentiated retrieval)
+        risk_label = customer['risk_bucket'].capitalize()
+        query = (
+            f"{risk_label} risk customer age {customer_row['age']}, tenure {customer_row['tenure_m']} months, "
+            f"premium ${customer_row['premium']:.0f}, lapse probability {customer['lapse_probability']:.2%}"
+        )
         
         # Retrieve docs
         retrieved = rag.retrieve(query, corpus='lapse')
@@ -489,4 +492,3 @@ def run_rag_pipeline(preds_df, full_df, output_dir='out', top_k=3):
     print(f"Faithfulness audit: {audit['faithful_percent']}% faithful")
     
     return audit
-
