@@ -188,13 +188,13 @@ def manual_randomized_search(X_train, y_train, X_val, y_val, preprocessor,
             "random_state": seed,
             "eval_metric": "aucpr",
             "scale_pos_weight": scale_pos_weight,
+            "early_stopping_rounds": 30,
         })
         
         clf = XGBClassifier(**params)
         clf.fit(
             X_train_trans, y_train,
             eval_set=[(X_val_trans, y_val)],
-            early_stopping_rounds=30,
             verbose=False
         )
         
@@ -211,7 +211,6 @@ def manual_randomized_search(X_train, y_train, X_val, y_val, preprocessor,
     final_clf.fit(
         X_train_trans, y_train,
         eval_set=[(X_val_trans, y_val)],
-        early_stopping_rounds=30,
         verbose=False
     )
     
