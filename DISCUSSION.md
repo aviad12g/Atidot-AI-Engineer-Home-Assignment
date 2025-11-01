@@ -14,17 +14,9 @@ We included a `post_event_call_count` feature that uses information from after t
 
 Starting 2023-07, we added +80% base risk and amplified smoker/regional effects to simulate market disruption.
 
-## SHAP Insights
+## SHAP Notes
 
-Top risk drivers (mean absolute SHAP values, 300 test samples):
-
-1. **No agent relationship** – Lack of an agent remains the largest single driver of lapse risk.
-2. **Age curve** – Very young and older policyholders push predictions upward, consistent with the synthetic risk design.
-3. **Smoker status** – Smoker vs. non-smoker signals materially shift risk scores.
-4. **Regional exposure (South/West)** – These regions contribute the strongest uplift after the drift event.
-5. **Engagement & dependents depth** – Lower engagement and fewer dependents raise risk, while high engagement offsets it.
-
-Payment failures and recent claims are now part of the feature set; they surface mainly through interaction splits rather than the global top-5 importances.
+A SHAP pass on 300 test rows shows a familiar pattern. Policies without an assigned agent top the list, followed by the age U-shape we baked into the generator and smoker status. The regional drift after July pushes South and West customers higher, while engagement and dependent counts help the model dial risk back down. Payment failures and recent claims sit just outside the top handful; they come through specific interaction splits rather than the global ranking.
 
 ## Ablation
 
@@ -36,4 +28,4 @@ The synthetic data includes strong feature-target relationships (payment failure
 
 ## Baseline Stability
 
-Numeric features are standardized prior to modeling so the logistic baseline converges cleanly (no max-iteration warnings). This keeps the baseline comparison reliable while XGBoost handles the richer interaction space.
+Numeric features are standardized before modeling so the logistic baseline settles without warnings. That keeps the baseline comparison honest while XGBoost handles the heavier lifting.

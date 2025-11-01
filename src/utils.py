@@ -1,109 +1,67 @@
-"""Utility functions for seeding, timing, IO, and feature name helpers."""
+"""Utility functions."""
+import json
 import os
 import random
 import time
-import json
-from pathlib import Path
 import numpy as np
 
 
-def set_seed(seed=42):
-    """Set all random seeds for reproducibility (including PYTHONHASHSEED)."""
+def set_seed(seed):
+    """Set random seeds for reproducibility."""
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
-    # XGBoost random_state is set per-model, not globally
 
 
 class Timer:
-    """Context manager and standalone timer."""
-    
-    def __init__(self):
-        self.start_time = None
-        self.end_time = None
+    """Simple context manager for timing."""
     
     def __enter__(self):
-        self.start_time = time.time()
+        self.start = time.time()
         return self
     
     def __exit__(self, *args):
-        self.end_time = time.time()
-    
-    @property
-    def elapsed(self):
-        """Get elapsed time in seconds."""
-        if self.end_time is None:
-            return time.time() - self.start_time
-        return self.end_time - self.start_time
+        self.elapsed = time.time() - self.start
+
+
+def save_json(data, path):
+    """Save dict to JSON."""
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def save_jsonl(data, path):
+    """Save list of dicts to JSONL."""
+    with open(path, 'w') as f:
+        for item in data:
+            f.write(json.dumps(item) + '\n')
+
+
+def load_json(path):
+    """Load JSON file."""
+    with open(path, 'r') as f:
+        return json.load(f)
 
 
 def ensure_dir(path):
     """Create directory if it doesn't exist."""
-    Path(path).mkdir(parents=True, exist_ok=True)
-
-
-def save_json(data, filepath):
-    """Save dict to JSON file."""
-    ensure_dir(Path(filepath).parent)
-    with open(filepath, 'w') as f:
-        json.dump(data, f, indent=2)
-
-
-def save_jsonl(items, filepath):
-    """Save list of dicts to JSONL file."""
-    ensure_dir(Path(filepath).parent)
-    with open(filepath, 'w') as f:
-        for item in items:
-            f.write(json.dumps(item) + '\n')
-
-
-def load_json(filepath):
-    """Load JSON file."""
-    with open(filepath, 'r') as f:
-        return json.load(f)
-
-
-def load_jsonl(filepath):
-    """Load JSONL file."""
-    items = []
-    with open(filepath, 'r') as f:
-        for line in f:
-            items.append(json.loads(line))
-    return items
+    if '/' in path:
+        dir_path = path if not path.endswith(('.json', '.csv', '.txt', '.png', '.pkl', '.jsonl')) else path.rsplit('/', 1)[0]
+        os.makedirs(dir_path, exist_ok=True)
+    else:
+        os.makedirs(path, exist_ok=True)
 
 
 def get_package_versions():
-    """Get versions of key packages."""
-    import sys
+    """Get package versions for reproducibility."""
     import numpy
-    import scipy
     import pandas
     import sklearn
     import xgboost
-    import shap
-    import matplotlib
     
     return {
-        "python": sys.version.split()[0],
         "numpy": numpy.__version__,
-        "scipy": scipy.__version__,
         "pandas": pandas.__version__,
-        "scikit-learn": sklearn.__version__,
+        "sklearn": sklearn.__version__,
         "xgboost": xgboost.__version__,
-        "shap": shap.__version__,
-        "matplotlib": matplotlib.__version__,
     }
-
-
-def clean_feature_names(names):
-    """Clean feature names for readable SHAP plots."""
-    cleaned = []
-    for name in names:
-        # Remove prefixes from ColumnTransformer
-        if '__' in name:
-            name = name.split('__', 1)[1]
-        # Shorten one-hot encoded names
-        name = name.replace('onehotencoder_', '').replace('simpleimputer_', '')
-        cleaned.append(name)
-    return cleaned
-

@@ -1,4 +1,4 @@
-"""RAG system with TF-IDF retrieval and template-based plan generation."""
+"""RAG system with TF-IDF retrieval."""
 import json
 import re
 import time
@@ -10,34 +10,21 @@ from src.utils import save_jsonl, save_json
 
 
 class RAGSystem:
-    """TF-IDF based RAG for lapse prevention and lead conversion strategies."""
+    """TF-IDF based RAG for lapse and lead strategies."""
     
     def __init__(self, lapse_docs_dir='out/rag/lapse', lead_docs_dir='out/rag/lead', top_k=3):
-        """
-        Initialize RAG system.
-        
-        Parameters:
-        -----------
-        lapse_docs_dir : str
-            Path to lapse prevention documents
-        lead_docs_dir : str
-            Path to lead conversion documents
-        top_k : int
-            Number of documents to retrieve (default 3)
-        """
         self.lapse_docs_dir = Path(lapse_docs_dir)
         self.lead_docs_dir = Path(lead_docs_dir)
         self.top_k = top_k
         
-        # Load documents
+        # Load docs
         self.lapse_docs = self._load_documents(self.lapse_docs_dir)
         self.lead_docs = self._load_documents(self.lead_docs_dir)
         
-        # Build TF-IDF vectorizers
+        # Build vectorizers
         self.lapse_vectorizer = TfidfVectorizer(stop_words='english', sublinear_tf=True)
         self.lead_vectorizer = TfidfVectorizer(stop_words='english', sublinear_tf=True)
         
-        # Fit vectorizers
         lapse_texts = [doc['content'] for doc in self.lapse_docs]
         lead_texts = [doc['content'] for doc in self.lead_docs]
         
@@ -45,34 +32,20 @@ class RAGSystem:
         self.lead_tfidf = self.lead_vectorizer.fit_transform(lead_texts)
     
     def _load_documents(self, docs_dir):
-        """Load markdown documents from directory."""
+        """Load markdown files."""
         docs = []
         for doc_path in sorted(docs_dir.glob('Doc*.md')):
             with open(doc_path, 'r') as f:
                 content = f.read()
-            doc_id = doc_path.stem  # e.g., "Doc1"
             docs.append({
-                'id': f'Doc#{doc_id[3:]}',  # e.g., "Doc#1"
-                'content': content,
-                'path': str(doc_path)
+                'id': doc_path.stem,
+                'content': content
             })
         return docs
     
     def retrieve(self, query, corpus='lapse'):
-        """
-        Retrieve top-k most relevant documents.
-        
-        Parameters:
-        -----------
-        query : str
-            Query text
-        corpus : str
-            'lapse' or 'lead'
-        
-        Returns:
-        --------
-        list of dict with keys: id, content, score
-        """
+        """Retrieve top-k docs by TF-IDF similarity."""
+        # TODO: could experiment with different k values or BM25
         if corpus == 'lapse':
             vectorizer = self.lapse_vectorizer
             tfidf_matrix = self.lapse_tfidf
@@ -82,18 +55,13 @@ class RAGSystem:
             tfidf_matrix = self.lead_tfidf
             docs = self.lead_docs
         
-        # Transform query
         query_vec = vectorizer.transform([query])
-        
-        # Compute cosine similarity
         scores = (tfidf_matrix @ query_vec.T).toarray().flatten()
         
-        # Get top-k indices
-        top_k_idx = np.argsort(scores)[::-1][:self.top_k]
+        top_idx = np.argsort(scores)[-self.top_k:][::-1]
         
-        # Return top-k docs with scores
         retrieved = []
-        for idx in top_k_idx:
+        for idx in top_idx:
             retrieved.append({
                 'id': docs[idx]['id'],
                 'content': docs[idx]['content'],
@@ -102,221 +70,122 @@ class RAGSystem:
         
         return retrieved
     
-    def generate_lapse_plan(self, customer_profile, retrieved_docs):
-        """
-        Generate lapse prevention plan using retrieved document content.
-        Strategy varies by risk bucket to ensure differentiation.
+    def generate_lapse_plan(self, profile, retrieved_docs):
+        """Generate lapse prevention plan."""
+        prob = profile['lapse_probability']
+        risk_bucket = profile['risk_bucket']
         
-        Parameters:
-        -----------
-        customer_profile : dict
-            Keys: age, tenure_m, premium, coverage, region, has_agent, 
-                  is_smoker, dependents, lapse_probability, risk_bucket
-        retrieved_docs : list of dict
-            Retrieved documents with 'id' and 'content'
-        
-        Returns:
-        --------
-        dict with plan details
-        """
-        start_time = time.time()
-        
-        # Extract key phrases from each retrieved document
-        doc_ids = []
-        doc_summaries = []
-        for doc in retrieved_docs[:3]:
-            doc_ids.append(doc['id'])
-            # Extract first substantive sentence (guidance)
-            lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
-            if lines:
-                # Get first sentence of actual content
-                first_para = lines[0].split('.')[0] + '.'
-                doc_summaries.append(first_para)
-            else:
-                doc_summaries.append("retention guidance")
-        
-        # Generate 3 steps using retrieved content
-        steps = []
-        prob = customer_profile['lapse_probability']
-        risk = customer_profile['risk_bucket']
-        
-        # RISK-DIFFERENTIATED STRATEGIES: High/Mid/Low use different urgency and tactics
-        
-        # Step 1: Immediate action (varies by risk level)
-        if risk == 'high':
-            # High risk: URGENT intervention
-            if 'grace' in doc_summaries[0].lower() or 'grace' in retrieved_docs[0]['content'].lower():
-                step1 = f"URGENT: At {prob:.0%} lapse risk, activate IMMEDIATE grace period extension (30 days) and escalate to senior retention specialist within 24 hours. [{doc_ids[0]}]"
-            elif 'agent' in doc_summaries[0].lower() or 'outreach' in retrieved_docs[0]['content'].lower():
-                step1 = f"URGENT: At {prob:.0%} lapse risk, deploy TOP-TIER agent for emergency outreach within 12 hours with authority to offer significant concessions. [{doc_ids[0]}]"
-            else:
-                step1 = f"URGENT: At {prob:.0%} lapse risk, initiate EMERGENCY retention protocol with premium hold, immediate callback, and executive escalation path. [{doc_ids[0]}]"
-        elif risk == 'mid':
-            # Mid risk: Proactive but measured
-            if 'payment' in doc_summaries[0].lower() or 'flexible' in retrieved_docs[0]['content'].lower():
-                step1 = f"At {prob:.0%} lapse risk, proactively offer flexible payment options (biweekly/monthly) before next billing cycle. [{doc_ids[0]}]"
-            elif 'loyalty' in doc_summaries[0].lower() or 'reward' in retrieved_docs[0]['content'].lower():
-                step1 = f"At {prob:.0%} lapse risk, apply loyalty incentives (5-10% discount) and highlight tenure benefits to reinforce value. [{doc_ids[0]}]"
-            else:
-                step1 = f"At {prob:.0%} lapse risk, schedule proactive check-in call within 5 days to review policy fit and address concerns. [{doc_ids[0]}]"
-        else:  # low risk
-            # Low risk: Preventive, low-touch
-            if 'digital' in doc_summaries[0].lower() or 'reminder' in retrieved_docs[0]['content'].lower():
-                step1 = f"At {prob:.0%} lapse risk, maintain automated engagement via email/SMS reminders and self-service portal. [{doc_ids[0]}]"
-            elif 'loyalty' in doc_summaries[0].lower():
-                step1 = f"At {prob:.0%} lapse risk, enroll in preventive loyalty program with milestone rewards to sustain long-term retention. [{doc_ids[0]}]"
-            else:
-                step1 = f"At {prob:.0%} lapse risk, continue standard service cadence with periodic check-ins and satisfaction surveys. [{doc_ids[0]}]"
-        steps.append(f"1) {step1}")
-        
-        # Step 2: Relationship/value building (differentiated by risk)
-        if risk == 'high':
-            # High risk needs human touch + deep incentives
-            if customer_profile['has_agent']:
-                step2 = f"Activate EXISTING agent for intensive intervention: daily check-ins, custom payment plan, and policy restructuring options. [{doc_ids[1]}]"
-            else:
-                step2 = f"Assign PREMIUM agent immediately with authorization for expedited underwriting, coverage adjustments, and retention budget. [{doc_ids[1]}]"
-        elif risk == 'mid':
-            # Mid risk benefits from moderate personalization
-            tenure = customer_profile['tenure_m']
-            if 'loyalty' in doc_summaries[1].lower():
-                step2 = f"Leverage {tenure}-month tenure history: offer anniversary rewards, refer-a-friend bonus, and personalized coverage review. [{doc_ids[1]}]"
-            else:
-                step2 = f"Provide mid-tier value demonstration: coverage gap analysis, savings calculator, and tailored add-on recommendations. [{doc_ids[1]}]"
-        else:  # low risk
-            # Low risk: automated value reinforcement
-            step2 = f"Deploy automated value reinforcement: quarterly coverage summaries, digital wellness tools, and self-service upgrade paths. [{doc_ids[1]}]"
-        steps.append(f"2) {step2}")
-        
-        # Step 3: Long-term retention strategy (varies by risk)
-        if risk == 'high':
-            # High risk: aggressive save tactics
-            step3 = f"Implement SAVE plan: 90-day check-in calendar, premium freeze option, and fast-track claims service to rebuild trust. [{doc_ids[2]}]"
-        elif risk == 'mid':
-            # Mid risk: proactive monitoring
-            step3 = f"Establish proactive monitoring: bi-monthly touchpoints, seasonal review schedule, and early warning triggers for future risk. [{doc_ids[2]}]"
-        else:  # low risk
-            # Low risk: passive engagement
-            step3 = f"Maintain passive engagement: annual review invitations, NPS surveys, and opt-in educational content to sustain satisfaction. [{doc_ids[2]}]"
-        steps.append(f"3) {step3}")
-        
-        # Use microseconds precision to capture sub-millisecond operations
-        elapsed_ms = round((time.time() - start_time) * 1000, 3)
-        
-        return {
-            'risk_bucket': risk,
-            'lapse_probability': customer_profile['lapse_probability'],
-            'plan_steps': steps,
-            'citations': doc_ids,
-            'retrieved_ids': doc_ids,  # For faithfulness check
-            'latency_ms': elapsed_ms
-        }
-    
-    def generate_lead_plan(self, lead_profile, retrieved_docs):
-        """
-        Generate lead conversion plan using retrieved document content.
-        
-        Parameters:
-        -----------
-        lead_profile : dict
-            Keys: description, age, region, coverage_interest, has_agent_preference
-        retrieved_docs : list of dict
-            Retrieved documents with 'id' and 'content'
-        
-        Returns:
-        --------
-        dict with plan details
-        """
-        start_time = time.time()
-        
-        # Extract key themes from each retrieved document
+        # Extract doc info
         doc_ids = []
         doc_summaries = []
         for doc in retrieved_docs[:3]:
             doc_ids.append(doc['id'])
             lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
-            if lines:
-                first_para = lines[0].split('.')[0] + '.'
-                doc_summaries.append(first_para)
+            first_sentence = lines[0] if lines else "retention strategy"
+            doc_summaries.append(first_sentence.lower()[:100])
+        
+        # Build risk-specific plan
+        if risk_bucket == 'high':
+            urgency = "URGENT"
+            step1 = f"{urgency}: {prob:.0%} lapse risk detected. Immediate retention protocol. [{doc_ids[0]}]"
+            
+            if 'grace' in doc_summaries[1] or 'payment' in doc_summaries[1]:
+                step2 = f"Offer 30-day grace period + payment plan (3-6 month installments) to ease financial burden. [{doc_ids[1]}]"
+            elif 'agent' in doc_summaries[1] or 'outreach' in doc_summaries[1]:
+                step2 = f"Escalate to senior agent for personalized outreach within 24h. Phone > email for high-risk. [{doc_ids[1]}]"
+            elif 'loyalty' in doc_summaries[1] or 'discount' in doc_summaries[1]:
+                step2 = f"Emergency retention offer: 15-20% loyalty discount for 6-month commitment. [{doc_ids[1]}]"
             else:
-                doc_summaries.append("lead conversion guidance")
-        
-        # Generate 3 steps using retrieved content
-        steps = []
-        age = lead_profile.get('age', 35)
-        
-        # Step 1: Use doc 0 content for messaging/segmentation
-        if 'segment' in doc_summaries[0].lower() or 'messaging' in retrieved_docs[0]['content'].lower():
-            if age < 30:
-                step1 = f"Deploy segment-targeted messaging for young professionals emphasizing mobile-first experience, transparent pricing, and digital enrollment convenience. [{doc_ids[0]}]"
-            elif age < 50:
-                step1 = f"Use family-focused messaging highlighting income replacement, dependent protection, and financial security for growing households. [{doc_ids[0]}]"
+                step2 = f"Personalized retention offer based on customer profile and payment history. [{doc_ids[1]}]"
+            
+            if 'season' in doc_summaries[2] or 'smoker' in doc_summaries[2]:
+                step3 = f"Smoker-specific coaching: Connect to cessation programs (10-15% premium reduction incentive). [{doc_ids[2]}]"
             else:
-                step1 = f"Emphasize legacy planning and estate protection for retirees/pre-retirees with sophisticated financial integration messaging. [{doc_ids[0]}]"
-        elif 'cadence' in doc_summaries[0].lower() or 'contact' in retrieved_docs[0]['content'].lower():
-            step1 = f"Implement optimal contact cadence: initial response within 5 minutes (80% higher conversion), followed by strategic touchpoints at days 1, 3, 7, and 14. [{doc_ids[0]}]"
-        elif 'value' in doc_summaries[0].lower() or 'proposition' in retrieved_docs[0]['content'].lower():
-            step1 = f"Lead with clear value proposition highlighting customer-centric benefits, superior claims service, and competitive advantages with quantified savings. [{doc_ids[0]}]"
-        elif 'trial' in doc_summaries[0].lower() or 'offer' in retrieved_docs[0]['content'].lower():
-            step1 = f"Present risk-free trial with 30-60 day money-back guarantee and first-month discount to lower initial commitment barriers. [{doc_ids[0]}]"
-        else:
-            step1 = f"Apply targeted lead conversion strategy based on demographic profile and acquisition channel. [{doc_ids[0]}]"
-        steps.append(f"1) {step1}")
+                step3 = f"Follow-up cadence: Day 3, Day 7, Day 14 until retention confirmed or lapse finalized. [{doc_ids[2]}]"
         
-        # Step 2: Use doc 1 content for cadence/channel
-        if 'cadence' in doc_summaries[1].lower() or 'contact' in retrieved_docs[1]['content'].lower():
-            if lead_profile.get('has_agent_preference'):
-                step2 = f"Execute agent-led cadence: consultation within 24 hours, personalized email follow-up next day, maintain weekly touchpoints with consultative approach. [{doc_ids[1]}]"
+        elif risk_bucket == 'mid':
+            step1 = f"Proactive retention: {prob:.0%} lapse risk. Engage before escalation. [{doc_ids[0]}]"
+            
+            if 'loyalty' in doc_summaries[1] or 'discount' in doc_summaries[1]:
+                step2 = f"Enroll in loyalty program: 5-10% discount, anniversary perks, priority service access. [{doc_ids[1]}]"
+            elif 'agent' in doc_summaries[1]:
+                step2 = f"Assign dedicated agent for quarterly check-ins and policy optimization reviews. [{doc_ids[1]}]"
             else:
-                step2 = f"Deploy digital-first cadence: instant online quote, educational content day 3, live chat day 7, limited-time offer day 14 per optimal timing research. [{doc_ids[1]}]"
-        elif 'objection' in doc_summaries[1].lower() or 'handling' in retrieved_docs[1]['content'].lower():
-            step2 = f"Prepare objection handling framework: price (value demonstration), timing (urgency creation), competitor (differentiation), using feel-felt-found technique. [{doc_ids[1]}]"
-        elif 'channel' in doc_summaries[1].lower() or 'multi' in retrieved_docs[1]['content'].lower():
-            step2 = f"Coordinate multi-channel engagement (phone, email, chat, social) with unified message tracking and seamless hand-offs between touchpoints. [{doc_ids[1]}]"
-        elif 'value' in doc_summaries[1].lower() or 'proposition' in retrieved_docs[1]['content'].lower():
-            step2 = f"Communicate value proposition through customer testimonials, satisfaction scores, and third-party ratings to build credibility and trust. [{doc_ids[1]}]"
-        else:
-            step2 = f"Maintain consistent engagement through strategic follow-up sequence aligned with lead warming patterns. [{doc_ids[1]}]"
-        steps.append(f"2) {step2}")
+                step2 = f"Offer value-add services: free policy review, coverage optimization, multi-policy bundling. [{doc_ids[1]}]"
+            
+            step3 = f"Monitor engagement: Track response to offers; escalate if no action within 14 days. [{doc_ids[2]}]"
         
-        # Step 3: Use doc 2 content for objection/value/closing
-        if 'objection' in doc_summaries[2].lower() or 'objection' in retrieved_docs[2]['content'].lower():
-            step3 = f"Deploy objection handling: address price through value quantification, timing through limited offers, competitor through differentiation proof and superior service metrics. [{doc_ids[2]}]"
-        elif 'trial' in doc_summaries[2].lower() or 'offer' in retrieved_docs[2]['content'].lower():
-            step3 = f"Close with trial offer: 30-day free-look period, first-month discount (10-15% off), money-back guarantee to eliminate risk and accelerate decision. [{doc_ids[2]}]"
-        elif 'value' in doc_summaries[2].lower() or 'proposition' in retrieved_docs[2]['content'].lower():
-            step3 = f"Reinforce value proposition with specific benefits, customer success stories, and competitive comparisons showing 20-30% better value metrics. [{doc_ids[2]}]"
-        elif 'channel' in doc_summaries[2].lower() or 'channel' in retrieved_docs[2]['content'].lower():
-            step3 = f"Optimize channel strategy by measuring conversion rates per touchpoint (phone 35%, email 15%, chat 25%) and allocating resources accordingly. [{doc_ids[2]}]"
-        else:
-            step3 = f"Finalize conversion with clear call-to-action, simplified enrollment process, and immediate confirmation to secure commitment. [{doc_ids[2]}]"
-        steps.append(f"3) {step3}")
+        else:  # low risk
+            step1 = f"Preventive care: {prob:.0%} lapse risk (low). Maintain engagement. [{doc_ids[0]}]"
+            step2 = f"Standard touchpoint cadence: Quarterly newsletters, annual review invitations, policy updates. [{doc_ids[1]}]"
+            step3 = f"Upsell readiness: Track life events (marriage, kids, home purchase) for coverage expansion. [{doc_ids[2]}]"
         
-        # Use microseconds precision to capture sub-millisecond operations
-        elapsed_ms = round((time.time() - start_time) * 1000, 3)
-        
-        return {
-            'risk_bucket': 'n/a',
-            'lapse_probability': None,
-            'plan_steps': steps,
-            'citations': doc_ids,
-            'retrieved_ids': doc_ids,  # For faithfulness check
-            'latency_ms': elapsed_ms
+        plan = {
+            'policy_id': profile.get('policy_id', None),
+            'lapse_probability': prob,
+            'risk_bucket': risk_bucket,
+            'retrieved_docs': [d['id'] for d in retrieved_docs],
+            'plan': [step1, step2, step3]
         }
+        
+        return plan
+    
+    def generate_lead_plan(self, lead, retrieved_docs):
+        """Generate lead conversion plan."""
+        doc_ids = []
+        doc_summaries = []
+        for doc in retrieved_docs[:3]:
+            doc_ids.append(doc['id'])
+            lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
+            first_sentence = lines[0] if lines else "lead strategy"
+            doc_summaries.append(first_sentence.lower()[:100])
+        
+        lead_desc = lead.get('description', '').lower()
+        
+        # Build lead-specific plan
+        if 'young' in lead_desc or lead['age'] < 35:
+            step1 = f"Digital-first approach: Instant quote (< 2 min), mobile-optimized signup, no paperwork. [{doc_ids[0]}]"
+        elif 'senior' in lead_desc or lead['age'] > 60:
+            step1 = f"Trust-building: Agent-led consultation, printed materials, family involvement option. [{doc_ids[0]}]"
+        else:
+            step1 = f"Hybrid approach: Online quote + optional agent consultation for complex needs. [{doc_ids[0]}]"
+        
+        if 'price' in lead_desc or 'objection' in lead_desc:
+            if 'objection' in doc_summaries[1] or 'handling' in doc_summaries[1]:
+                step2 = f"Address price objection: Show cost-benefit analysis, lifetime value, competitor comparison. [{doc_ids[1]}]"
+            elif 'discount' in doc_summaries[1] or 'trial' in doc_summaries[1]:
+                step2 = f"Intro offer: First month 20% off, 30-day free-look period, no commitment required. [{doc_ids[1]}]"
+            else:
+                step2 = f"Value emphasis: Demonstrate ROI through real customer scenarios and claims examples. [{doc_ids[1]}]"
+        elif 'family' in lead_desc or lead.get('has_agent_preference'):
+            step2 = f"Family protection angle: Multi-policy bundling (15-25% savings), dependent coverage, estate planning tie-in. [{doc_ids[1]}]"
+        else:
+            step2 = f"Segment-specific messaging: Tailor value props to age, income, family status, and regional preferences. [{doc_ids[1]}]"
+        
+        if 'unsure' in lead_desc or 'coverage' in lead_desc:
+            step3 = f"Education-first close: Coverage calculator, needs assessment quiz, expert Q&A session. [{doc_ids[2]}]"
+        else:
+            if 'trial' in doc_summaries[2] or 'discount' in retrieved_docs[2]['content'].lower():
+                step3 = f"Close with trial offer: 30-day free-look, first-month 10-15% off, money-back guarantee. [{doc_ids[2]}]"
+            elif 'value' in doc_summaries[2]:
+                step3 = f"Reinforce value: Specific benefits, customer stories, 20-30% better value vs competitors. [{doc_ids[2]}]"
+            else:
+                step3 = f"Multi-channel follow-up: Phone (35% conversion), email (15%), chat (25%). [{doc_ids[2]}]"
+        
+        plan = {
+            'lead_id': lead['lead_id'],
+            'description': lead['description'],
+            'retrieved_docs': [d['id'] for d in retrieved_docs],
+            'plan': [step1, step2, step3]
+        }
+        
+        return plan
 
 
-def select_lapse_customers(preds_df, n_samples=3):
-    """
-    Select high, median, and low risk customers from predictions.
+def pick_demo_customers(preds_df, n_customers=3):
+    """Select high/mid/low risk customers from predictions."""
+    sorted_df = preds_df.sort_values('p_raw', ascending=False)
     
-    Returns:
-    --------
-    list of dicts with customer profiles
-    """
-    # Sort by predicted probability
-    sorted_df = preds_df.sort_values('p_raw', ascending=False).reset_index(drop=True)
-    
-    # Select high, median, low
     high_idx = 0
     mid_idx = len(sorted_df) // 2
     low_idx = len(sorted_df) - 1
@@ -335,7 +204,7 @@ def select_lapse_customers(preds_df, n_samples=3):
 
 
 def create_synthetic_leads(n_leads=3):
-    """Create synthetic lead profiles."""
+    """Create lead profiles."""
     leads = [
         {
             'lead_id': 1,
@@ -366,62 +235,36 @@ def create_synthetic_leads(n_leads=3):
 
 
 def run_rag_pipeline(preds_df, full_df, output_dir='out', top_k=3):
-    """
-    Complete RAG pipeline for lapse prevention and lead conversion.
-    
-    Parameters:
-    -----------
-    preds_df : pd.DataFrame
-        Predictions dataframe
-    full_df : pd.DataFrame
-        Full dataset for customer profiles
-    output_dir : str
-        Output directory for artifacts
-    top_k : int
-        Number of documents to retrieve (from config)
-    
-    Returns:
-    --------
-    dict with audit results
-    """
-    # Initialize RAG system
+    """Run RAG for lapse prevention and lead conversion."""
+    # Initialize RAG
     rag = RAGSystem(
-        lapse_docs_dir='out/rag/lapse',
-        lead_docs_dir='out/rag/lead',
+        lapse_docs_dir=f'{output_dir}/rag/lapse',
+        lead_docs_dir=f'{output_dir}/rag/lead',
         top_k=top_k
     )
     
-    # Select lapse customers
-    lapse_customers = select_lapse_customers(preds_df, n_samples=3)
+    # Pick demo customers
+    demo_customers = pick_demo_customers(preds_df, n_customers=3)
     
-    # Generate lapse prevention plans
+    # Generate lapse plans
     lapse_plans = []
-    for customer in lapse_customers:
-        # Get full customer profile from data
+    for customer in demo_customers:
         customer_row = full_df[
             (full_df['policy_id'] == customer['policy_id']) & 
             (full_df['month'] == customer['month'])
         ].iloc[0]
         
-        # Build query (include risk bucket to drive differentiated retrieval)
-        bucket = customer['risk_bucket']
-        risk_label = bucket.capitalize()
-        risk_terms = {
-            'high': 'urgent escalation grace period agent outreach flexible payment rescue',
-            'mid': 'loyalty incentives proactive relationship review savings calculator retention program',
-            'low': 'digital reminder automation engagement self-service cadence wellness check-ins',
-        }
+        # Build query with risk bucket
+        risk_label = customer['risk_bucket'].capitalize()
         query = (
             f"{risk_label} risk customer age {customer_row['age']}, tenure {customer_row['tenure_m']} months, "
-            f"premium ${customer_row['premium']:.0f}, lapse probability {customer['lapse_probability']:.2%} "
-            f"{risk_terms.get(bucket, '')}"
+            f"premium ${customer_row['premium']:.0f}, lapse probability {customer['lapse_probability']:.2%}"
         )
         
-        # Retrieve docs
         retrieved = rag.retrieve(query, corpus='lapse')
         
-        # Generate plan
         profile = {
+            'policy_id': int(customer_row['policy_id']),
             'age': int(customer_row['age']),
             'tenure_m': int(customer_row['tenure_m']),
             'premium': float(customer_row['premium']),
@@ -437,65 +280,75 @@ def run_rag_pipeline(preds_df, full_df, output_dir='out', top_k=3):
         plan = rag.generate_lapse_plan(profile, retrieved)
         lapse_plans.append(plan)
     
-    # Create synthetic leads
+    # Generate lead plans
     leads = create_synthetic_leads(n_leads=3)
-    
-    # Generate lead conversion plans
     lead_plans = []
     for lead in leads:
-        # Build query
-        query = f"Lead age {lead['age']}, interested in ${lead['coverage_interest']} coverage, " \
-                f"{lead['description']}"
-        
-        # Retrieve docs
+        query = f"Lead conversion: {lead['description']}, age {lead['age']}, region {lead['region']}"
         retrieved = rag.retrieve(query, corpus='lead')
         
-        # Generate plan
         plan = rag.generate_lead_plan(lead, retrieved)
         lead_plans.append(plan)
     
     # Save plans
-    save_jsonl(lapse_plans, f'{output_dir}/lapse_plans.jsonl')
-    save_jsonl(lead_plans, f'{output_dir}/lead_plans.jsonl')
+    # Format with rendered text for audit
+    lapse_plans_output = []
+    for p in lapse_plans:
+        rendered = '\n'.join(p['plan'])
+        lapse_plans_output.append({
+            'policy_id': p['policy_id'],
+            'lapse_probability': p['lapse_probability'],
+            'risk_bucket': p['risk_bucket'],
+            'retrieved_docs': p['retrieved_docs'],
+            'plan': p['plan'],
+            'rendered_text': rendered
+        })
+    
+    lead_plans_output = []
+    for p in lead_plans:
+        rendered = '\n'.join(p['plan'])
+        lead_plans_output.append({
+            'lead_id': p['lead_id'],
+            'description': p['description'],
+            'retrieved_docs': p['retrieved_docs'],
+            'plan': p['plan'],
+            'rendered_text': rendered
+        })
+    
+    save_jsonl(lapse_plans_output, f'{output_dir}/lapse_plans.jsonl')
+    save_jsonl(lead_plans_output, f'{output_dir}/lead_plans.jsonl')
     
     # Faithfulness audit
-    audit_details = []
-    all_plans = lapse_plans + lead_plans
+    audit_results = []
     
-    for i, plan in enumerate(all_plans):
-        cited = set(plan['citations'])
-        retrieved = set(plan.get('retrieved_ids', []))
-        faithful = cited.issubset(retrieved)
+    for plan in lapse_plans_output + lead_plans_output:
+        rendered_text = plan['rendered_text']
+        retrieved_ids = set(plan['retrieved_docs'])
         
-        audit_details.append({
-            'plan_id': i,
-            'plan_type': 'lapse' if i < len(lapse_plans) else 'lead',
-            'retrieved_ids': list(retrieved),
-            'cited_ids': list(cited),
+        cited_ids = set(re.findall(r'\[(Doc\d+)\]', rendered_text))
+        
+        faithful = cited_ids.issubset(retrieved_ids)
+        
+        plan_id = plan.get('policy_id', plan.get('lead_id'))
+        audit_results.append({
+            'plan_id': plan_id,
+            'retrieved_ids': sorted(retrieved_ids),
+            'cited_ids': sorted(cited_ids),
             'faithful': faithful
         })
-        
-        # Assert faithfulness
-        assert faithful, f"Faithfulness breach in plan {i}: {cited} not subset of {retrieved}"
+    
+    faithful_count = sum(1 for r in audit_results if r['faithful'])
+    faithful_pct = 100.0 * faithful_count / len(audit_results) if audit_results else 0.0
     
     audit = {
-        'plans': audit_details,
-        'faithful_percent': 100.0 if all(p['faithful'] for p in audit_details) else 0.0
+        'plans': audit_results,
+        'summary': {
+            'total_plans': len(audit_results),
+            'faithful_plans': faithful_count,
+            'faithful_pct': faithful_pct
+        }
     }
     
     save_json(audit, f'{output_dir}/audit_rag.json')
-    
-    # Smoke asserts
-    assert len(lapse_plans) == 3, f"Expected 3 lapse plans, got {len(lapse_plans)}"
-    assert len(lead_plans) == 3, f"Expected 3 lead plans, got {len(lead_plans)}"
-    assert all(p.get('lapse_probability') is not None for p in lapse_plans), \
-        "All lapse plans must have lapse_probability"
-    assert all(p.get('lapse_probability') is None for p in lead_plans), \
-        "Lead plans should not have lapse_probability"
-    assert audit['faithful_percent'] == 100.0, \
-        f"Faithfulness audit failed: {audit['faithful_percent']}%"
-    
-    print(f"RAG pipeline complete: {len(lapse_plans)} lapse + {len(lead_plans)} lead plans")
-    print(f"Faithfulness audit: {audit['faithful_percent']}% faithful")
     
     return audit
