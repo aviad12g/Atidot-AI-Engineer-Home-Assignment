@@ -9,7 +9,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-The run finishes in about 15 seconds on a laptop and writes every artifact to `out/`.
+The run finishes in under a minute on a typical laptop and writes every artifact to `out/`.
 
 ## Inside the Pipeline
 
@@ -32,6 +32,6 @@ The run finishes in about 15 seconds on a laptop and writes every artifact to `o
 - AUC-PR: 0.718
 - Precision@1%: 0.775
 - Precision@5%: 0.825
-- Runtime: 14.4 seconds
+- Runtime: under 1 minute
 
 The strongest global signals in SHAP are lack of an agent relationship, age extremes, smoker status, and post-drift regional effects. More color on data generation, leakage handling, and interpretability lives in `DISCUSSION.md`.
