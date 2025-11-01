@@ -5,7 +5,7 @@ import joblib
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -91,7 +91,10 @@ def apply_leakage_guard(df):
 
 def build_preprocessor(numeric_features, categorical_features):
     """Build sklearn ColumnTransformer for preprocessing."""
-    numeric_transformer = SimpleImputer(strategy='median')
+    numeric_transformer = Pipeline([
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+    ])
     categorical_transformer = Pipeline([
         ('imputer', SimpleImputer(strategy='most_frequent')),
         ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=True))
@@ -132,7 +135,7 @@ def train_baseline_models(X_train, y_train, X_val, y_val, preprocessor):
     results['dummy_val_aucpr'] = average_precision_score(y_val, y_val_pred_dummy)
     
     # Logistic Regression
-    logreg = LogisticRegression(max_iter=1000, random_state=42, n_jobs=1)
+    logreg = LogisticRegression(max_iter=3000, random_state=42, n_jobs=1)
     logreg.fit(X_train_trans, y_train)
     y_val_pred_lr = logreg.predict_proba(X_val_trans)[:, 1]
     results['logreg_val_aucpr'] = average_precision_score(y_val, y_val_pred_lr)

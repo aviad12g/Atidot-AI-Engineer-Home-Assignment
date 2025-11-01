@@ -33,3 +33,7 @@ Payment failures and recent claims are now part of the feature set; they surface
 - **XGBoost**: 0.72 AUC-PR (+47% lift over baseline)
 
 The synthetic data includes strong feature-target relationships (payment failures 3x weight, premium changes 8x) and nonlinear interactions to create realistic, learnable patterns.
+
+## Baseline Stability
+
+Numeric features are standardized prior to modeling so the logistic baseline converges cleanly (no max-iteration warnings). This keeps the baseline comparison reliable while XGBoost handles the richer interaction space.

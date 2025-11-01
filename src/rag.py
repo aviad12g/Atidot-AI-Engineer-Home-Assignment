@@ -404,10 +404,17 @@ def run_rag_pipeline(preds_df, full_df, output_dir='out', top_k=3):
         ].iloc[0]
         
         # Build query (include risk bucket to drive differentiated retrieval)
-        risk_label = customer['risk_bucket'].capitalize()
+        bucket = customer['risk_bucket']
+        risk_label = bucket.capitalize()
+        risk_terms = {
+            'high': 'urgent escalation grace period agent outreach flexible payment rescue',
+            'mid': 'loyalty incentives proactive relationship review savings calculator retention program',
+            'low': 'digital reminder automation engagement self-service cadence wellness check-ins',
+        }
         query = (
             f"{risk_label} risk customer age {customer_row['age']}, tenure {customer_row['tenure_m']} months, "
-            f"premium ${customer_row['premium']:.0f}, lapse probability {customer['lapse_probability']:.2%}"
+            f"premium ${customer_row['premium']:.0f}, lapse probability {customer['lapse_probability']:.2%} "
+            f"{risk_terms.get(bucket, '')}"
         )
         
         # Retrieve docs
