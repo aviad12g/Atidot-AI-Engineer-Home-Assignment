@@ -1,4 +1,4 @@
-"""Generate synthetic insurance panel data."""
+"""Synthetic insurance panel data generator with temporal structure, drift, and leakage trap."""
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -6,61 +6,92 @@ from datetime import datetime, timedelta
 
 def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total=15, 
                            drift_start_month="2023-07", seed=42):
-    """Generate synthetic insurance panel data with drift and leakage trap."""
+    """
+    Generate synthetic insurance panel data.
+    
+    Parameters:
+    -----------
+    n_policies : int
+        Number of unique policies
+    n_months_persist : int
+        Number of months to persist to CSV (default 12)
+    n_months_total : int
+        Total months to generate in memory for label computation (default 15)
+    drift_start_month : str
+        Month when drift begins (YYYY-MM format)
+    seed : int
+        Random seed
+    
+    Returns:
+    --------
+    pd.DataFrame
+        Panel data with only first n_months_persist months
+    """
     np.random.seed(seed)
     
+    # Generate base policy characteristics (time-invariant)
     policy_ids = np.arange(1, n_policies + 1)
     
-    # Base characteristics (time-invariant)
+    # Age: Normal(45, 15), clipped to [18, 85]
     base_age = np.clip(np.random.normal(45, 15, n_policies), 18, 85).astype(int)
+    
+    # Region: categorical
     regions = np.random.choice(['N', 'S', 'E', 'W', 'C'], n_policies, 
                               p=[0.25, 0.20, 0.25, 0.15, 0.15])
+    
+    # Has agent: binary
     has_agent = np.random.binomial(1, 0.35, n_policies)
+    
+    # Is smoker: binary
     is_smoker = np.random.binomial(1, 0.20, n_policies)
+    
+    # Dependents: Poisson(lambda=1.2), clipped to [0, 4]
     dependents = np.clip(np.random.poisson(1.2, n_policies), 0, 4)
     
-    # Generate monthly panel
+    # Generate monthly panel (all months in memory)
     start_date = datetime(2023, 1, 1)
     months = []
     for i in range(n_months_total):
+        # Proper month increment (handles different month lengths)
         year = start_date.year + (start_date.month + i - 1) // 12
         month = (start_date.month + i - 1) % 12 + 1
         months.append(f"{year:04d}-{month:02d}")
     
+    # Create panel structure
     records = []
     
     for month_idx, month in enumerate(months):
         for policy_idx, policy_id in enumerate(policy_ids):
+            # Tenure increases with month
             tenure_m = max(1, int(np.random.exponential(40)) + month_idx * 1)
-            tenure_m = min(tenure_m, 240)
+            tenure_m = min(tenure_m, 240)  # Cap at 20 years
             
+            # Age increases slightly with months (aging)
             age = min(85, base_age[policy_idx] + month_idx // 12)
             
-            # Premium depends on age + smoker status
+            # Premium: log-normal, influenced by age and smoker status
             base_premium = np.exp(np.random.normal(np.log(150), 0.4))
             age_factor = 1.0 + (age - 45) * 0.01
             smoker_factor = 1.5 if is_smoker[policy_idx] else 1.0
             premium = base_premium * age_factor * smoker_factor
             
+            # Coverage: correlated with premium
             coverage = premium * np.random.uniform(50, 150)
             
-            # Premium change in last 90 days
-            if month_idx < 3:
-                premium_change_90d = 0.0
-            else:
-                premium_change_90d = np.random.normal(0.02, 0.08)
-                premium_change_90d = np.clip(premium_change_90d, -0.15, 0.30)
+            # Premium change in last 90 days: small random walk
+            premium_change_90d = np.random.normal(0, 0.10)
+            premium_change_90d = np.clip(premium_change_90d, -0.25, 0.25)
             
-            # Claims in last 12 months (behavioral signal)
+            # Claims in the last 12 months (behavioural signal)
             if tenure_m < 12:
-                claims_12m = np.random.poisson(0.1)
+                claims_12m = np.random.poisson(0.1)  # New customers rarely claim
             elif tenure_m < 60:
-                claims_12m = np.random.poisson(0.4)
+                claims_12m = np.random.poisson(0.4)  # Mid-tenure customers claim more
             else:
-                claims_12m = np.random.poisson(0.2)
+                claims_12m = np.random.poisson(0.2)  # Long-term customers stabilise
             claims_12m = min(claims_12m, 5)
             
-            # Payment failures (strong predictor)
+            # Payment failures across the last six months: rough financial stress proxy
             if tenure_m < 6:
                 payment_failures = 0
             else:
@@ -71,7 +102,7 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
                     base_failure_rate += 0.02
                 payment_failures = np.random.binomial(3, base_failure_rate)
             
-            # Engagement score
+            # Customer engagement score (0-1) to capture touch frequency
             base_engagement = 0.5
             if has_agent[policy_idx]:
                 base_engagement += 0.2
@@ -84,7 +115,7 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
             records.append({
                 'policy_id': policy_id,
                 'month': month,
-                'month_idx': month_idx,
+                'month_idx': month_idx,  # temporary, for label computation
                 'age': age,
                 'tenure_m': tenure_m,
                 'premium': premium,
@@ -101,117 +132,189 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
     
     df = pd.DataFrame(records)
     
-    # Compute lapse_next_3m target
+    # Compute lapse_next_3m (forward-looking target)
+    # For each month m, look at whether policy lapses in m+1, m+2, or m+3
     df = df.sort_values(['policy_id', 'month_idx']).reset_index(drop=True)
     
-    # Group by policy and shift lapse status
-    df['lapse_indicator'] = 0
+    # Generate lapse probabilities with deliberately learnable patterns
+    lapse_probs = []
     
-    for _, row in df.iterrows():
-        policy_id = row['policy_id']
-        month_idx = row['month_idx']
+    for idx, row in df.iterrows():
+        # Start with a low baseline to keep prevalence reasonable
+        logit = -2.5  # ~7.5% base rate
         
-        # Compute lapse probability
-        logit = -2.5  # base risk
+        # Age U-curve: very young and older customers wander off more
+        age_dev = abs(row['age'] - 45) / 15.0
+        logit += 1.5 * age_dev
         
-        # Stronger coefficients for learnable patterns
-        logit += -0.8 * row['tenure_m'] / 100.0  # tenure effect (15x stronger)
-        logit += 0.8 * row['premium_change_90d'] * 10  # price shock (8x stronger)
-        logit += -0.3 if row['has_agent'] else 0.6  # agent protective
-        logit += 0.4 if row['is_smoker'] else 0.0
-        logit += (row['age'] - 45) / 100.0  # age effect
-        logit += -0.15 * row['dependents']
+        # Tenure effect: loyalty builds with time on book
+        tenure_factor = min(row['tenure_m'], 120) / 120.0
+        logit -= 2.5 * tenure_factor
         
-        # New features
+        # Premium change: sharp increases generate cancellations
+        logit += 8.0 * row['premium_change_90d']
+        
+        # Smoker flag: higher rates push risk up
+        if row['is_smoker']:
+            logit += 1.2
+        
+        # Agent support is a strong retention lever
+        if row['has_agent']:
+            logit -= 2.0
+        
+        # Regional multipliers to simulate market differences
+        region_effects = {'N': -0.3, 'S': 0.6, 'E': -0.2, 'W': 0.4, 'C': 0.0}
+        logit += region_effects[row['region']]
+        
+        # Interaction patterns chosen so the model can pick them up
+        # 1. Price shock + low tenure
+        if row['tenure_m'] < 24 and row['premium_change_90d'] > 0.10:
+            logit += 1.5
+        
+        # 2. No agent + price increase
+        if not row['has_agent'] and row['premium_change_90d'] > 0.05:
+            logit += 1.0
+        
+        # 3. Smoker + older age
+        if row['is_smoker'] and row['age'] > 60:
+            logit += 0.8
+        
+        # 4. Agent + long tenure
+        if row['has_agent'] and row['tenure_m'] > 60:
+            logit -= 1.2
+        
+        # 5. Larger families stay put
+        if row['dependents'] > 2:
+            logit -= 0.6
+        
+        # Claims, payment issues, and engagement
         if row['claims_12m'] > 2:
             logit += 1.2
         elif row['claims_12m'] == 1:
             logit += 0.3
         
-        logit += 3.0 * row['payment_failures']  # very strong
+        logit += 3.0 * row['payment_failures']
         
+        # Engagement dampens risk
         engagement_effect = (1.0 - row['engagement']) * 2.5
         logit += engagement_effect
         
-        # Interactions
-        if row['premium_change_90d'] > 0.10 and row['tenure_m'] < 24:
-            logit += 1.5  # price shock + low tenure
-        
-        if not row['has_agent'] and row['premium_change_90d'] > 0.08:
-            logit += 1.0
-        
-        if row['is_smoker'] and row['age'] > 60:
-            logit += 0.8
-        
-        if row['has_agent'] and row['tenure_m'] > 120:
-            logit -= 1.2  # loyal + agent = very low risk
-        
-        if row['dependents'] >= 3:
-            logit -= 0.5
-        
+        # Additional combinations to keep things interesting
+        # 6. Young + no agent + price increase
         if row['age'] < 30 and not row['has_agent'] and row['premium_change_90d'] > 0.10:
             logit += 1.8
         
+        # 7. Smoker + premium increase
         if row['is_smoker'] and row['premium_change_90d'] > 0.05:
             logit += 1.3
         
+        # 8. Payment failures + low engagement
         if row['payment_failures'] > 0 and row['engagement'] < 0.4:
             logit += 1.0
         
+        # 9. Claims + no agent
         if row['claims_12m'] > 1 and not row['has_agent']:
             logit += 0.9
         
+        # 10. Low coverage ratio = poor value perception
         coverage_ratio = row['coverage'] / (row['premium'] * 1000 + 1)
         if coverage_ratio < 0.05:
             logit += 0.7
         
-        # Drift starts July (market disruption sim)
+        # Market shock kicks in mid-year
         if row['month'] >= drift_start_month:
-            logit += 0.8
+            logit += 0.8  # Much stronger drift (+80% base risk)
             if row['is_smoker']:
-                logit += 0.4
+                logit += 0.4  # Health premiums rise faster during drift
             if not row['has_agent']:
-                logit += 0.3
+                logit += 0.3  # Unadvised customers more affected by market changes
+            # Regional drift effects
             if row['region'] in ['S', 'W']:
-                logit += 0.5
+                logit += 0.5  # These regions hit harder by economic changes
         
-        lapse_prob = 1.0 / (1.0 + np.exp(-logit))
-        lapse_prob = np.clip(lapse_prob, 0.01, 0.95)
+        # Add small noise to prevent overfitting but keep signal strong
+        noise = np.random.normal(0, 0.15)  # Small noise
+        logit += noise
         
-        # Determine if lapse in next 3 months
-        will_lapse_next_3m = np.random.binomial(1, lapse_prob)
+        # Convert to probability
+        prob = 1 / (1 + np.exp(-logit))
         
-        df.loc[(df['policy_id'] == policy_id) & (df['month_idx'] == month_idx), 'lapse_indicator'] = will_lapse_next_3m
+        # Ensure we have good distribution across risk buckets
+        # Apply slight compression to keep probabilities in realistic range
+        prob = np.clip(prob, 0.01, 0.85)  # Extreme values still allowed but bounded
+        
+        lapse_probs.append(prob)
     
-    # Compute lapse_next_3m using 3-month lookahead
-    df['lapse_next_3m'] = 0
+    df['lapse_prob'] = lapse_probs
+    
+    # Now compute lapse_next_3m for each row
+    # This requires looking ahead 3 months for the same policy
+    lapse_next_3m = []
+    
     for policy_id in df['policy_id'].unique():
         policy_df = df[df['policy_id'] == policy_id].sort_values('month_idx')
         
         for idx, row in policy_df.iterrows():
             month_idx = row['month_idx']
-            future_rows = policy_df[(policy_df['month_idx'] > month_idx) & 
-                                   (policy_df['month_idx'] <= month_idx + 3)]
             
-            if len(future_rows) == 3:
-                lapsed_in_next_3m = int(future_rows['lapse_indicator'].sum() > 0)
-                df.loc[idx, 'lapse_next_3m'] = lapsed_in_next_3m
+            # Look at next 3 months
+            future_months = policy_df[
+                (policy_df['month_idx'] > month_idx) & 
+                (policy_df['month_idx'] <= month_idx + 3)
+            ]
+            
+            if len(future_months) < 3:
+                # Not enough future data (this happens for last few months)
+                # We'll mark these, but they'll be filtered out for months 1-12
+                lapse = 0
             else:
-                df.loc[idx, 'lapse_next_3m'] = np.nan
+                # Sample whether lapse occurs in any of the next 3 months
+                # Use the average prob across the 3 months
+                avg_prob = future_months['lapse_prob'].mean()
+                lapse = np.random.binomial(1, avg_prob)
+            
+            lapse_next_3m.append(lapse)
     
-    df = df.dropna(subset=['lapse_next_3m'])
-    df['lapse_next_3m'] = df['lapse_next_3m'].astype(int)
+    df['lapse_next_3m'] = lapse_next_3m
     
-    # Add leakage trap
-    df['post_event_call_count'] = 0
-    for idx, row in df.iterrows():
-        if row['lapse_next_3m'] == 1:
-            df.loc[idx, 'post_event_call_count'] = np.random.poisson(5)
-        else:
-            df.loc[idx, 'post_event_call_count'] = np.random.poisson(0.5)
+    # Add leakage trap: post_event_call_count
+    # This would only be known AFTER a lapse occurs
+    # Policies that lapse get high call counts
+    df['post_event_call_count'] = df['lapse_next_3m'] * np.random.poisson(5, len(df)) + \
+                                  (1 - df['lapse_next_3m']) * np.random.poisson(0.5, len(df))
+    df['post_event_call_count'] = df['post_event_call_count'].astype(int)
     
-    # Keep only first n_months_persist
+    # Keep only first n_months_persist months for output
     df_persist = df[df['month_idx'] < n_months_persist].copy()
-    df_persist = df_persist.drop(columns=['month_idx', 'lapse_indicator'])
+    
+    # Drop temporary columns
+    df_persist = df_persist.drop(columns=['month_idx', 'lapse_prob'])
+    
+    # Sort by month, policy_id
+    df_persist = df_persist.sort_values(['month', 'policy_id']).reset_index(drop=True)
+    
+    # Ensure correct dtypes
+    df_persist['policy_id'] = df_persist['policy_id'].astype(int)
+    df_persist['age'] = df_persist['age'].astype(int)
+    df_persist['tenure_m'] = df_persist['tenure_m'].astype(int)
+    df_persist['region'] = df_persist['region'].astype(str)
+    df_persist['has_agent'] = df_persist['has_agent'].astype(int)
+    df_persist['is_smoker'] = df_persist['is_smoker'].astype(int)
+    df_persist['dependents'] = df_persist['dependents'].astype(int)
+    df_persist['lapse_next_3m'] = df_persist['lapse_next_3m'].astype(int)
+    df_persist['post_event_call_count'] = df_persist['post_event_call_count'].astype(int)
+    df_persist['claims_12m'] = df_persist['claims_12m'].astype(int)
+    df_persist['payment_failures'] = df_persist['payment_failures'].astype(int)
     
     return df_persist
+
+
+if __name__ == "__main__":
+    # Test generation
+    df = generate_synthetic_data(n_policies=100, n_months_persist=12, n_months_total=15, seed=42)
+    print(f"Generated {len(df)} records")
+    print(f"Unique policies: {df['policy_id'].nunique()}")
+    print(f"Months: {df['month'].unique()}")
+    print(f"Lapse rate: {df['lapse_next_3m'].mean():.3f}")
+    print("\nSample data:")
+    print(df.head(10))

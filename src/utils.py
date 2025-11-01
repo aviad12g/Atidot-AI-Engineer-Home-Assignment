@@ -1,8 +1,9 @@
-"""Utility functions."""
+"""Utility helpers for the project."""
 import json
 import os
 import random
 import time
+from pathlib import Path
 import numpy as np
 
 
@@ -18,10 +19,18 @@ class Timer:
     
     def __enter__(self):
         self.start = time.time()
+        self.end = None
         return self
     
     def __exit__(self, *args):
-        self.elapsed = time.time() - self.start
+        self.end = time.time()
+    
+    @property
+    def elapsed(self):
+        if self.start is None:
+            return 0.0
+        reference = self.end if self.end is not None else time.time()
+        return reference - self.start
 
 
 def save_json(data, path):
@@ -44,12 +53,10 @@ def load_json(path):
 
 
 def ensure_dir(path):
-    """Create directory if it doesn't exist."""
-    if '/' in path:
-        dir_path = path if not path.endswith(('.json', '.csv', '.txt', '.png', '.pkl', '.jsonl')) else path.rsplit('/', 1)[0]
-        os.makedirs(dir_path, exist_ok=True)
-    else:
-        os.makedirs(path, exist_ok=True)
+    """Create the directory for a file or folder path."""
+    target = Path(path)
+    directory = target if target.suffix == "" else target.parent
+    directory.mkdir(parents=True, exist_ok=True)
 
 
 def get_package_versions():
