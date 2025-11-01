@@ -330,13 +330,14 @@ def run_modeling_pipeline(train_df, val_df, test_df, output_dir='out',
     
     plot_shap_bar(shap_values, feature_names, f'{output_dir}/shap_bar.png', top_k=15)
     
-    # Save model
+    # Save model as pipeline for easier reuse
     print("Saving trained model...")
-    model_artifact = {
-        'preprocessor': preprocessor,
-        'classifier': best_clf
-    }
-    joblib.dump(model_artifact, f'{output_dir}/model.pkl')
+    from sklearn.pipeline import Pipeline as SkPipeline
+    model_pipeline = SkPipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', best_clf)
+    ])
+    joblib.dump(model_pipeline, f'{output_dir}/model.pkl')
     
     return {
         'baseline_results': baseline_results,

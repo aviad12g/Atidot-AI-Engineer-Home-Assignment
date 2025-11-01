@@ -29,8 +29,8 @@ The run finishes in under a minute on a typical laptop and writes every artifact
 
 ## Current Model Snapshot
 
-- AUC-PR: 0.718
-- Precision@1%: 0.775
+- AUC-PR: 0.715
+- Precision@1%: 0.825
 - Precision@5%: 0.825
 - Runtime: under 1 minute
 
