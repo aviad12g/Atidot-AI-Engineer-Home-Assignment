@@ -239,7 +239,7 @@ def compute_shap_explanation(clf, X_test, preprocessor, max_samples=500, seed=42
     feature_names : list
     n_sample : int
     """
-    # Sample ≤500 test rows
+    # Sample <= 500 test rows
     n_sample = min(max_samples, len(X_test))
     X_test_sample = X_test.sample(n=n_sample, random_state=seed)
     
@@ -380,7 +380,7 @@ def run_modeling_pipeline(train_df, val_df, test_df, output_dir='out',
     )
     
     # Plot SHAP
-    plot_shap_bar(shap_values, feature_names, f'{output_dir}/shap_bar.png', top_k=20)
+    plot_shap_bar(shap_values, feature_names, f'{output_dir}/shap_bar.png', top_k=15)
     
     # Save the trained model
     print("Saving trained model...")

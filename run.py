@@ -132,19 +132,10 @@ def main():
         
         run_meta = {
             "seed": seed,
-            "elapsed_sec": round(elapsed_sec, 2),
-            "n_policies": n_policies,
-            "n_months_persist": n_months_persist,
-            "n_months_internal": n_months_internal,
-            "drift_start_month": drift_start,
-            "n_tuning_trials": n_trials,
-            "shap_sample_size": results['shap_sample_size'],
-            "package_versions": get_package_versions(),
-            "note": "Offline, no API keys, no LLM"
+            "elapsed_sec": round(elapsed_sec, 2)
         }
         
         save_json(run_meta, 'out/run_meta.json')
-        print(f"  Metadata saved to run_meta.json")
         
         # Step 6: Final checks and warnings
         print("\n[6/6] Final checks...")

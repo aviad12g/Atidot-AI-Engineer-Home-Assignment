@@ -158,7 +158,7 @@ def generate_synthetic_data(n_policies=2000, n_months_persist=12, n_months_total
         logit -= 2.5 * tenure_factor  # 15x stronger, nonlinear
         
         # VERY STRONG Premium change effect (price sensitivity is #1 driver)
-        # 10% increase → +30% lapse risk
+        # 10% increase -> +30% lapse risk
         logit += 8.0 * row['premium_change_90d']  # 4x stronger
         
         # STRONG Smoker effect (health-conscious behavior correlates with retention)
