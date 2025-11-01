@@ -1,7 +1,6 @@
 """RAG system with TF-IDF retrieval."""
 import json
 import re
-import time
 from pathlib import Path
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -130,112 +129,139 @@ class RAGSystem:
         return retrieved
     
     def generate_lapse_plan(self, profile, retrieved_docs):
-        """Generate lapse prevention plan."""
+        """Generate adaptive lapse prevention plan (1-3 steps based on retrieved docs)."""
         prob = profile['lapse_probability']
         risk_bucket = profile['risk_bucket']
         
-        # Extract doc info
-        doc_ids = []
-        doc_summaries = []
-        for doc in retrieved_docs[:3]:
-            doc_ids.append(doc['id'])
+        # Extract doc info for all retrieved docs
+        doc_info = []
+        for doc in retrieved_docs:
             lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
-            first_sentence = lines[0] if lines else "retention strategy"
-            doc_summaries.append(first_sentence.lower()[:100])
+            summary = lines[0].lower()[:100] if lines else ""
+            doc_info.append({'id': doc['id'], 'summary': summary, 'content': doc['content'].lower()})
         
-        # Build risk-specific plan
-        if risk_bucket == 'high':
-            urgency = "URGENT"
-            step1 = f"{urgency}: {prob:.0%} lapse risk detected. Immediate retention protocol. [{doc_ids[0]}]"
-            
-            if 'grace' in doc_summaries[1] or 'payment' in doc_summaries[1]:
-                step2 = f"Offer 30-day grace period + payment plan (3-6 month installments) to ease financial burden. [{doc_ids[1]}]"
-            elif 'agent' in doc_summaries[1] or 'outreach' in doc_summaries[1]:
-                step2 = f"Escalate to senior agent for personalized outreach within 24h. Phone > email for high-risk. [{doc_ids[1]}]"
-            elif 'loyalty' in doc_summaries[1] or 'discount' in doc_summaries[1]:
-                step2 = f"Emergency retention offer: 15-20% loyalty discount for 6-month commitment. [{doc_ids[1]}]"
-            else:
-                step2 = f"Personalized retention offer based on customer profile and payment history. [{doc_ids[1]}]"
-            
-            if 'season' in doc_summaries[2] or 'smoker' in doc_summaries[2]:
-                step3 = f"Smoker-specific coaching: Connect to cessation programs (10-15% premium reduction incentive). [{doc_ids[2]}]"
-            else:
-                step3 = f"Follow-up cadence: Day 3, Day 7, Day 14 until retention confirmed or lapse finalized. [{doc_ids[2]}]"
+        steps = []
         
-        elif risk_bucket == 'mid':
-            step1 = f"Proactive retention: {prob:.0%} lapse risk. Engage before escalation. [{doc_ids[0]}]"
-            
-            if 'loyalty' in doc_summaries[1] or 'discount' in doc_summaries[1]:
-                step2 = f"Enroll in loyalty program: 5-10% discount, anniversary perks, priority service access. [{doc_ids[1]}]"
-            elif 'agent' in doc_summaries[1]:
-                step2 = f"Assign dedicated agent for quarterly check-ins and policy optimization reviews. [{doc_ids[1]}]"
+        # Step 1: Always include risk assessment with first doc
+        if len(doc_info) > 0:
+            if risk_bucket == 'high':
+                steps.append(f"URGENT: {prob:.0%} lapse risk detected. Immediate retention protocol. [{doc_info[0]['id']}]")
+            elif risk_bucket == 'mid':
+                steps.append(f"Proactive retention: {prob:.0%} lapse risk. Engage before escalation. [{doc_info[0]['id']}]")
             else:
-                step2 = f"Offer value-add services: free policy review, coverage optimization, multi-policy bundling. [{doc_ids[1]}]"
-            
-            step3 = f"Monitor engagement: Track response to offers; escalate if no action within 14 days. [{doc_ids[2]}]"
+                steps.append(f"Preventive care: {prob:.0%} lapse risk (low). Maintain engagement. [{doc_info[0]['id']}]")
         
-        else:  # low risk
-            step1 = f"Preventive care: {prob:.0%} lapse risk (low). Maintain engagement. [{doc_ids[0]}]"
-            step2 = f"Standard touchpoint cadence: Quarterly newsletters, annual review invitations, policy updates. [{doc_ids[1]}]"
-            step3 = f"Upsell readiness: Track life events (marriage, kids, home purchase) for coverage expansion. [{doc_ids[2]}]"
+        # Step 2: Add action based on second doc content if available
+        if len(doc_info) > 1:
+            summary = doc_info[1]['summary']
+            doc_id = doc_info[1]['id']
+            
+            if risk_bucket == 'high':
+                if 'grace' in summary or 'payment' in summary:
+                    steps.append(f"Offer 30-day grace period + payment plan (3-6 month installments). [{doc_id}]")
+                elif 'agent' in summary or 'outreach' in summary:
+                    steps.append(f"Escalate to senior agent for personalized outreach within 24h. [{doc_id}]")
+                elif 'loyalty' in summary or 'discount' in summary:
+                    steps.append(f"Emergency retention offer: 15-20% loyalty discount for 6-month commitment. [{doc_id}]")
+                else:
+                    steps.append(f"Personalized retention offer based on customer profile and payment history. [{doc_id}]")
+            elif risk_bucket == 'mid':
+                if 'loyalty' in summary or 'discount' in summary:
+                    steps.append(f"Enroll in loyalty program: 5-10% discount, anniversary perks. [{doc_id}]")
+                elif 'agent' in summary:
+                    steps.append(f"Assign dedicated agent for quarterly check-ins. [{doc_id}]")
+                else:
+                    steps.append(f"Offer value-add services: policy review, coverage optimization. [{doc_id}]")
+            else:
+                steps.append(f"Standard touchpoint cadence: Quarterly newsletters, annual reviews. [{doc_id}]")
+        
+        # Step 3: Add follow-up based on third doc if available
+        if len(doc_info) > 2:
+            summary = doc_info[2]['summary']
+            doc_id = doc_info[2]['id']
+            
+            if risk_bucket == 'high':
+                if 'season' in summary or 'smoker' in summary:
+                    steps.append(f"Smoker-specific coaching: Connect to cessation programs (10-15% reduction incentive). [{doc_id}]")
+                else:
+                    steps.append(f"Follow-up cadence: Day 3, Day 7, Day 14 until retention confirmed. [{doc_id}]")
+            elif risk_bucket == 'mid':
+                steps.append(f"Monitor engagement: Track response to offers; escalate if no action within 14 days. [{doc_id}]")
+            else:
+                steps.append(f"Upsell readiness: Track life events for coverage expansion opportunities. [{doc_id}]")
         
         plan = {
             'policy_id': profile.get('policy_id', None),
             'lapse_probability': prob,
             'risk_bucket': risk_bucket,
             'retrieved_docs': [d['id'] for d in retrieved_docs],
-            'plan': [step1, step2, step3]
+            'plan': steps
         }
         
         return plan
     
     def generate_lead_plan(self, lead, retrieved_docs):
-        """Generate lead conversion plan."""
-        doc_ids = []
-        doc_summaries = []
-        for doc in retrieved_docs[:3]:
-            doc_ids.append(doc['id'])
-            lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
-            first_sentence = lines[0] if lines else "lead strategy"
-            doc_summaries.append(first_sentence.lower()[:100])
-        
+        """Generate adaptive lead conversion plan (1-3 steps based on retrieved docs)."""
         lead_desc = lead.get('description', '').lower()
+        age = lead['age']
         
-        # Build lead-specific plan
-        if 'young' in lead_desc or lead['age'] < 35:
-            step1 = f"Digital-first approach: Instant quote (< 2 min), mobile-optimized signup, no paperwork. [{doc_ids[0]}]"
-        elif 'senior' in lead_desc or lead['age'] > 60:
-            step1 = f"Trust-building: Agent-led consultation, printed materials, family involvement option. [{doc_ids[0]}]"
-        else:
-            step1 = f"Hybrid approach: Online quote + optional agent consultation for complex needs. [{doc_ids[0]}]"
+        # Extract doc info for all retrieved docs
+        doc_info = []
+        for doc in retrieved_docs:
+            lines = [l.strip() for l in doc['content'].split('\n') if l.strip() and not l.strip().startswith('#')]
+            summary = lines[0].lower()[:100] if lines else ""
+            doc_info.append({'id': doc['id'], 'summary': summary, 'content': doc['content'].lower()})
         
-        if 'price' in lead_desc or 'objection' in lead_desc:
-            if 'objection' in doc_summaries[1] or 'handling' in doc_summaries[1]:
-                step2 = f"Address price objection: Show cost-benefit analysis, lifetime value, competitor comparison. [{doc_ids[1]}]"
-            elif 'discount' in doc_summaries[1] or 'trial' in doc_summaries[1]:
-                step2 = f"Intro offer: First month 20% off, 30-day free-look period, no commitment required. [{doc_ids[1]}]"
+        steps = []
+        
+        # Step 1: Initial approach based on lead segment (use first doc)
+        if len(doc_info) > 0:
+            doc_id = doc_info[0]['id']
+            if 'young' in lead_desc or age < 35:
+                steps.append(f"Digital-first approach: Instant quote (< 2 min), mobile-optimized signup. [{doc_id}]")
+            elif 'senior' in lead_desc or age > 60:
+                steps.append(f"Trust-building: Agent-led consultation, printed materials, family involvement option. [{doc_id}]")
             else:
-                step2 = f"Value emphasis: Demonstrate ROI through real customer scenarios and claims examples. [{doc_ids[1]}]"
-        elif 'family' in lead_desc or lead.get('has_agent_preference'):
-            step2 = f"Family protection angle: Multi-policy bundling (15-25% savings), dependent coverage, estate planning tie-in. [{doc_ids[1]}]"
-        else:
-            step2 = f"Segment-specific messaging: Tailor value props to age, income, family status, and regional preferences. [{doc_ids[1]}]"
+                steps.append(f"Hybrid approach: Online quote + optional agent consultation for complex needs. [{doc_id}]")
         
-        if 'unsure' in lead_desc or 'coverage' in lead_desc:
-            step3 = f"Education-first close: Coverage calculator, needs assessment quiz, expert Q&A session. [{doc_ids[2]}]"
-        else:
-            if 'trial' in doc_summaries[2] or 'discount' in retrieved_docs[2]['content'].lower():
-                step3 = f"Close with trial offer: 30-day free-look, first-month 10-15% off, money-back guarantee. [{doc_ids[2]}]"
-            elif 'value' in doc_summaries[2]:
-                step3 = f"Reinforce value: Specific benefits, customer stories, 20-30% better value vs competitors. [{doc_ids[2]}]"
+        # Step 2: Handle objections or positioning (use second doc if available)
+        if len(doc_info) > 1:
+            summary = doc_info[1]['summary']
+            doc_id = doc_info[1]['id']
+            
+            if 'price' in lead_desc or 'objection' in lead_desc:
+                if 'objection' in summary or 'handling' in summary:
+                    steps.append(f"Address price objection: Show cost-benefit analysis, lifetime value. [{doc_id}]")
+                elif 'discount' in summary or 'trial' in summary:
+                    steps.append(f"Intro offer: First month 20% off, 30-day free-look period. [{doc_id}]")
+                else:
+                    steps.append(f"Value emphasis: Demonstrate ROI through real customer scenarios. [{doc_id}]")
+            elif 'family' in lead_desc or lead.get('has_agent_preference'):
+                steps.append(f"Family protection angle: Multi-policy bundling (15-25% savings), dependent coverage. [{doc_id}]")
             else:
-                step3 = f"Multi-channel follow-up: Phone (35% conversion), email (15%), chat (25%). [{doc_ids[2]}]"
+                steps.append(f"Segment-specific messaging: Tailor value props to age, income, family status. [{doc_id}]")
+        
+        # Step 3: Closing strategy (use third doc if available)
+        if len(doc_info) > 2:
+            summary = doc_info[2]['summary']
+            content = doc_info[2]['content']
+            doc_id = doc_info[2]['id']
+            
+            if 'unsure' in lead_desc or 'coverage' in lead_desc:
+                steps.append(f"Education-first close: Coverage calculator, needs assessment quiz. [{doc_id}]")
+            else:
+                if 'trial' in summary or 'discount' in content:
+                    steps.append(f"Close with trial offer: 30-day free-look, first-month 10-15% off. [{doc_id}]")
+                elif 'value' in summary:
+                    steps.append(f"Reinforce value: Specific benefits, customer stories. [{doc_id}]")
+                else:
+                    steps.append(f"Multi-channel follow-up: Phone (35% conversion), email (15%), chat (25%). [{doc_id}]")
         
         plan = {
             'lead_id': lead['lead_id'],
             'description': lead['description'],
             'retrieved_docs': [d['id'] for d in retrieved_docs],
-            'plan': [step1, step2, step3]
+            'plan': steps
         }
         
         return plan

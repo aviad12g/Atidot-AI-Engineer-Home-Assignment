@@ -8,7 +8,7 @@ Target runtime: <5 minutes
 import yaml
 import pandas as pd
 
-from src.utils import set_seed, Timer, save_json, get_package_versions, ensure_dir
+from src.utils import set_seed, Timer, save_json, ensure_dir
 from src.data_generator import generate_synthetic_data
 from src.model import (
     temporal_split,
