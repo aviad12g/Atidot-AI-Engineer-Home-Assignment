@@ -6,7 +6,66 @@ from pathlib import Path
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from src.utils import save_jsonl, save_json
+from src.utils import save_jsonl, save_json, ensure_dir
+
+
+def ensure_rag_corpora(lapse_docs_dir='out/rag/lapse', lead_docs_dir='out/rag/lead'):
+    """
+    Create default lapse/lead corpora if they are missing.
+    Existing files are left untouched.
+    """
+    lapse_docs = [
+        """# Grace Period Extension Strategy
+
+Grace periods buy customers time to make payments without losing coverage. Offer a 15–30 day extension when a bill is late and remind them at 7, 14, and 21 days. Longer-tenure households can earn a 45–60 day window as a loyalty perk.""",
+        """# Agent Outreach Protocols
+
+Agent outreach improves retention by 40–60%. Flag at-risk policies and have an agent reach out within 48 hours. Keep the conversation centred on life changes, finances, or service gaps rather than a hard sell.""",
+        """# Flexible Payment Plan Options
+
+Flexible billing helps prevent lapses. Offer biweekly or semi-monthly plans, short-term premium reductions, or limited deferments so customers can stay covered during cash-flow shocks.""",
+        """# Loyalty Incentives and Rewards
+
+Reward tenure milestones with fee waivers, premium credits, or small gifts. Trigger a proactive loyalty offer in the 30 days leading up to renewal to reinforce value.""",
+        """# Seasonality and Lifestyle Coaching
+
+Address seasonal pressure (holidays, tax season) with temporary plan adjustments. Provide wellness or lifestyle coaching—such as smoker cessation support—with premium credits tied to progress.""",
+        """# Digital Reminder and Engagement Systems
+
+Use multichannel reminders (email, SMS, push) to avoid accidental lapses. Escalate the cadence as the due date approaches and include one-click payment links to reduce friction."""
+    ]
+
+    lead_docs = [
+        """# Messaging by Segment
+
+Tailor copy to the lead’s situation: early-career professionals want digital convenience, families focus on dependents, and retirees care about legacy planning.""",
+        """# Touchpoint Cadence
+
+Suggested cadence: immediate follow-up, then touches at days 1, 3, 7, and 14. Mix channels so the lead stays warm without feeling spammed.""",
+        """# Objection Handling
+
+Prepare answers to price, timing, and competitor objections. Use a “feel–felt–found” structure and quantified value to move past hesitation.""",
+        """# Value Proposition
+
+Lead with fast claims, empathetic support, and transparent pricing. Support the story with testimonials or third-party ratings to build trust.""",
+        """# Trial and Discount Guidelines
+
+Lower the barrier to entry with a short trial, money-back guarantee, or first-month discount. Make the expiry dates clear to keep urgency high.""",
+        """# Agent vs. Digital Playbooks
+
+When a lead wants guidance, schedule an agent consult within 24 hours. For digital-first leads, combine live chat, self-service tools, and time-boxed offers."""
+    ]
+
+    def _write_docs(target_dir, docs):
+        target = Path(target_dir)
+        ensure_dir(target)
+        if any(target.glob("Doc*.md")):
+            return
+        for idx, content in enumerate(docs, start=1):
+            (target / f"Doc{idx}.md").write_text(content.strip() + "\n")
+
+    _write_docs(lapse_docs_dir, lapse_docs)
+    _write_docs(lead_docs_dir, lead_docs)
 
 
 class RAGSystem:

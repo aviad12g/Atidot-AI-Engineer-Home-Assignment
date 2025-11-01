@@ -4,13 +4,13 @@
       "plan_id": 474,
       "retrieved_ids": [
         "Doc1",
-        "Doc3",
-        "Doc5"
+        "Doc2",
+        "Doc4"
       ],
       "cited_ids": [
         "Doc1",
-        "Doc3",
-        "Doc5"
+        "Doc2",
+        "Doc4"
       ],
       "faithful": true
     },
@@ -18,13 +18,13 @@
       "plan_id": 1339,
       "retrieved_ids": [
         "Doc1",
-        "Doc3",
-        "Doc5"
+        "Doc2",
+        "Doc4"
       ],
       "cited_ids": [
         "Doc1",
-        "Doc3",
-        "Doc5"
+        "Doc2",
+        "Doc4"
       ],
       "faithful": true
     },
@@ -32,13 +32,13 @@
       "plan_id": 648,
       "retrieved_ids": [
         "Doc1",
-        "Doc3",
-        "Doc5"
+        "Doc2",
+        "Doc4"
       ],
       "cited_ids": [
         "Doc1",
-        "Doc3",
-        "Doc5"
+        "Doc2",
+        "Doc4"
       ],
       "faithful": true
     },
@@ -46,27 +46,27 @@
       "plan_id": 1,
       "retrieved_ids": [
         "Doc1",
-        "Doc2",
-        "Doc4"
+        "Doc3",
+        "Doc6"
       ],
       "cited_ids": [
         "Doc1",
-        "Doc2",
-        "Doc4"
+        "Doc3",
+        "Doc6"
       ],
       "faithful": true
     },
     {
       "plan_id": 2,
       "retrieved_ids": [
-        "Doc1",
         "Doc2",
-        "Doc4"
+        "Doc4",
+        "Doc6"
       ],
       "cited_ids": [
-        "Doc1",
         "Doc2",
-        "Doc4"
+        "Doc4",
+        "Doc6"
       ],
       "faithful": true
     },

@@ -15,7 +15,7 @@ from src.model import (
     apply_leakage_guard,
     run_modeling_pipeline
 )
-from src.rag import run_rag_pipeline
+from src.rag import run_rag_pipeline, ensure_rag_corpora
 
 
 def main():
@@ -112,7 +112,8 @@ def main():
         ))
         print("  Saved model.pkl, metrics.json, preds_test.csv, shap_bar.png")
         
-        print("\nBuilding RAG plans…")
+        print("\nEnsuring RAG corpora and building plans…")
+        ensure_rag_corpora('out/rag/lapse', 'out/rag/lead')
         audit = run_rag_pipeline(
             results['preds_df'],
             df,  # Use full data for customer profiles
